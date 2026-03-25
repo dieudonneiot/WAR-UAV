@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "teknofest-uav"
+version = "0.1.0"
+description = "TEKNOFEST 2026 UAV mission software workspace"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=2.0.0",
+  "opencv-python>=4.10.0",
+  "ultralytics>=8.3.0",
+  "pymavlink>=2.4.40",
+  "mavsdk>=3.10.0",
+  "python-dotenv>=1.0.1",
+  "PyYAML>=6.0.2",
+  "rich>=13.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.11.0",
+]
+
+[project.scripts]
+uav-main = "uav.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+

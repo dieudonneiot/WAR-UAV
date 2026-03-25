@@ -1,0 +1,83 @@
+The workspace is ready. I created the project structure, built a `.venv` with Python `3.12` because your installed `3.14` was too new for parts of the UAV stack, installed the core dependencies, and verified the setup with `pytest`, `ruff`, and the starter CLI.
+
+Key files are here: [README.md](C:/Dev/Personal/TEKNOFEST2026/README.md), [pyproject.toml](C:/Dev/Personal/TEKNOFEST2026/pyproject.toml), [.env.example](C:/Dev/Personal/TEKNOFEST2026/.env.example), [config/mission.example.yaml](C:/Dev/Personal/TEKNOFEST2026/config/mission.example.yaml), [src/uav/main.py](C:/Dev/Personal/TEKNOFEST2026/src/uav/main.py), and [.vscode/extensions.json](C:/Dev/Personal/TEKNOFEST2026/.vscode/extensions.json).
+
+Use it like this:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts/check_env.py
+pytest
+ruff check src tests scripts
+uav-main
+```
+
+**Mental Model**
+Think of the UAV software as 4 layers:
+
+1. `Pixhawk + ArduPlane`
+This is the autopilot. It keeps the aircraft stable, reads sensors, runs low-level flight control, and executes safe flight behaviors.
+
+2. `Jetson / mission computer`
+This is your smart companion computer. It runs Python code for target detection, QR reading, tracking, mission logic, and decision-making.
+
+3. `MAVLink`
+This is the communication language between the mission computer, autopilot, and ground tools.
+
+4. `Ground Control Station`
+This is what the operator uses to monitor the aircraft, upload missions, and intervene if needed.
+
+**What I Prepared**
+- [src/uav/autonomy](C:/Dev/Personal/TEKNOFEST2026/src/uav/autonomy): mission phases, geofence logic
+- [src/uav/vision](C:/Dev/Personal/TEKNOFEST2026/src/uav/vision): detector, tracker, QR reader
+- [src/uav/mavlink](C:/Dev/Personal/TEKNOFEST2026/src/uav/mavlink): MAVLink client wrapper
+- [src/uav/gcs](C:/Dev/Personal/TEKNOFEST2026/src/uav/gcs): telemetry payload utilities
+- [src/uav/simulation](C:/Dev/Personal/TEKNOFEST2026/src/uav/simulation): SITL bridge placeholder
+- [tests](C:/Dev/Personal/TEKNOFEST2026/tests): starter tests
+- [.vscode/settings.json](C:/Dev/Personal/TEKNOFEST2026/.vscode/settings.json): points VS Code to the local venv
+
+**Why These Tools**
+- `Python`: fastest way to build autonomy, vision, telemetry, and glue code.
+- `OpenCV`: works with camera frames, image transforms, drawing, and QR reading.
+- `Ultralytics / YOLO`: object detection for rival UAV spotting.
+- `PyTorch`: backend used by YOLO models.
+- `pymavlink`: low-level MAVLink access. Best when you want full control over messages and custom telemetry logic.
+- `mavsdk`: higher-level drone API. Easier for structured async control flows.
+- `PyYAML`: for mission and camera config files.
+- `python-dotenv`: keeps ports, baudrate, and environment-specific values out of code.
+- `pytest`: quick regression checks.
+- `ruff`: linting and code quality.
+- `VS Code`: your main editor and debugger.
+- `QGroundControl` / `Mission Planner`: not Python libraries. These are operator applications for real flight monitoring and mission management.
+
+**Why Both `pymavlink` and `mavsdk`**
+They solve different problems.
+- Use `pymavlink` when you need protocol-level control and competition-specific telemetry packets.
+- Use `mavsdk` when you want a cleaner, more application-style API.
+For your kind of TEKNOFEST project, `pymavlink` will likely be the core link and `mavsdk` may become optional depending on your architecture.
+
+**Normal Workflow**
+1. Write code in VS Code inside the `.venv`.
+2. Keep mission settings in `.env` and `config/*.yaml`.
+3. Start with simulation and mock data first.
+4. Run vision locally on saved videos/images.
+5. Connect the mission computer code to SITL or a Pixhawk over MAVLink.
+6. Send only high-level commands from your mission code.
+7. Let ArduPlane handle stabilization and low-level flight loops.
+8. Use QGroundControl or Mission Planner to observe flight state and debug.
+
+**How The Project Will Evolve**
+- `vision` will turn camera frames into detections, tracks, and QR results.
+- `autonomy` will decide what to do next: search, lock, dive, avoid, go-around.
+- `mavlink` will send commands and receive telemetry from Pixhawk.
+- `gcs` will format data for your operator tools or competition server.
+- `simulation` will let you test before touching the real aircraft.
+
+**Important Practical Note**
+This Windows environment is good for coding and early testing. If you deploy on `Jetson Orin`, later we should also prepare a Linux-side runtime with `JetPack`, `CUDA`, and `TensorRT`, because that is where the real-time YOLO inference will usually run.
+
+If you want, the next good step is for me to build the first real module set:
+1. camera input pipeline
+2. YOLO target detection service
+3. MAVLink telemetry listener
+4. mission state machine for `search -> track -> lock -> disengage`

@@ -1,0 +1,16 @@
+mission:
+  name: combat_uav
+  home_altitude_m: 0.0
+  lock_duration_s: 4.0
+  telemetry_rate_hz: 2.0
+
+vision:
+  detector_model: models/yolov8n.pt
+  camera_fov_deg: 100
+  image_width: 1920
+  image_height: 1200
+
+navigation:
+  geofence_margin_m: 50
+  safe_altitude_m: 60
+
