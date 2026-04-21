@@ -30,6 +30,22 @@ That makes it useful while the real Gazebo/SITL setup is still being prepared.
 
 ## 2. Full Gazebo/ArduPilot SITL
 
+Before moving to full SITL, run real camera or video frames through the same
+dashboard:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_vision_pipeline.py --source 0 --model yolov8n.pt
+```
+
+For a saved video:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_vision_pipeline.py --source data/sample.mp4 --model yolov8n.pt
+```
+
+This replaces synthetic detections with real Ultralytics detections while keeping
+the same tracker, engagement controller, and visual dashboard.
+
 The screenshot target is a full stack:
 
 - Gazebo Sim for world and aircraft visualization

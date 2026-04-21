@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from uav.autonomy.engagement import EngagementConfig, EngagementController, EngagementState
 from uav.autonomy.mission_manager import MissionManager
@@ -19,6 +20,7 @@ class SimulationEvent:
     time_s: float
     track: TrackState | None
     engagement: EngagementState
+    camera_frame: Any | None = None
 
 
 def run_vision_simulation(

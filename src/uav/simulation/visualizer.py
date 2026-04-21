@@ -22,14 +22,29 @@ class SimulationVisualizer:
         self.config = config or VisualizerConfig()
 
     def render(self, event: SimulationEvent) -> np.ndarray:
+        margin = 24
+        gap = 24
+        top_y = 48
+        telemetry_height = min(104, max(84, self.config.canvas_height // 6))
+        telemetry_y = self.config.canvas_height - telemetry_height - margin
+        panel_height = max(120, telemetry_y - top_y - gap)
+        available_width = self.config.canvas_width - margin * 2 - gap
+        camera_width = int(available_width * 0.66)
+        map_width = available_width - camera_width
+
         canvas = np.full(
             (self.config.canvas_height, self.config.canvas_width, 3),
             (32, 35, 38),
             dtype=np.uint8,
         )
-        camera_rect = (24, 48, 800, 520)
-        map_rect = (848, 48, 408, 520)
-        telemetry_rect = (24, 592, 1232, 104)
+        camera_rect = (margin, top_y, camera_width, panel_height)
+        map_rect = (margin + camera_width + gap, top_y, map_width, panel_height)
+        telemetry_rect = (
+            margin,
+            telemetry_y,
+            self.config.canvas_width - margin * 2,
+            telemetry_height,
+        )
 
         self._draw_panel(canvas, camera_rect, "Camera")
         self._draw_panel(canvas, map_rect, "Map")
@@ -69,17 +84,11 @@ class SimulationVisualizer:
         x, y, width, height = rect
         view_x, view_y = x + 12, y + 40
         view_w, view_h = width - 24, height - 52
-        horizon_y = view_y + int(view_h * 0.46)
-
-        cv2.rectangle(canvas, (view_x, view_y), (view_x + view_w, horizon_y), (165, 190, 210), -1)
-        cv2.rectangle(
-            canvas,
-            (view_x, horizon_y),
-            (view_x + view_w, view_y + view_h),
-            (62, 92, 64),
-            -1,
-        )
-        cv2.line(canvas, (view_x, horizon_y), (view_x + view_w, horizon_y), (235, 235, 235), 2)
+        if event.camera_frame is None:
+            self._draw_synthetic_camera_background(canvas, view_x, view_y, view_w, view_h)
+        else:
+            frame = cv2.resize(event.camera_frame, (view_w, view_h))
+            canvas[view_y : view_y + view_h, view_x : view_x + view_w] = frame
 
         center = (view_x + view_w // 2, view_y + view_h // 2)
         cv2.drawMarker(canvas, center, (240, 240, 240), cv2.MARKER_CROSS, 28, 1)
@@ -110,6 +119,25 @@ class SimulationVisualizer:
                 2,
                 cv2.LINE_AA,
             )
+
+    def _draw_synthetic_camera_background(
+        self,
+        canvas: np.ndarray,
+        view_x: int,
+        view_y: int,
+        view_w: int,
+        view_h: int,
+    ) -> None:
+        horizon_y = view_y + int(view_h * 0.46)
+        cv2.rectangle(canvas, (view_x, view_y), (view_x + view_w, horizon_y), (165, 190, 210), -1)
+        cv2.rectangle(
+            canvas,
+            (view_x, horizon_y),
+            (view_x + view_w, view_y + view_h),
+            (62, 92, 64),
+            -1,
+        )
+        cv2.line(canvas, (view_x, horizon_y), (view_x + view_w, horizon_y), (235, 235, 235), 2)
 
     def _draw_map(
         self,

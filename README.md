@@ -20,6 +20,8 @@ This repository is organized for a Python-first combat UAV software stack:
    - `pytest`
 5. Run the visual simulation:
    - `python scripts/run_visual_simulation.py`
+6. Run the YOLO vision pipeline on a camera or video:
+   - `python scripts/run_vision_pipeline.py --source 0 --model yolov8n.pt`
 
 ## Project Layout
 
@@ -43,3 +45,15 @@ python scripts/run_visual_simulation.py
 ```
 
 For details on the Gazebo/ArduPilot SITL direction, see `docs/simulation.md`.
+
+To run the same dashboard with real frames and Ultralytics detections:
+
+```powershell
+python scripts/run_vision_pipeline.py --source 0 --model yolov8n.pt
+```
+
+Use a video file instead of a webcam by passing its path:
+
+```powershell
+python scripts/run_vision_pipeline.py --source data/sample.mp4 --model yolov8n.pt
+```

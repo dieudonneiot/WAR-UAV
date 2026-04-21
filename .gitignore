@@ -6,6 +6,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.log
+*.pt
 .env
 build/
 dist/

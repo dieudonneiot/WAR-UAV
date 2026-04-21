@@ -32,6 +32,28 @@ def test_visualizer_renders_non_blank_frame() -> None:
     assert frame.max() > frame.min()
 
 
+def test_visualizer_can_render_source_camera_frame() -> None:
+    visualizer = SimulationVisualizer(VisualizerConfig(canvas_width=640, canvas_height=360))
+    source_frame = np.full((120, 160, 3), (10, 80, 140), dtype=np.uint8)
+    event = SimulationEvent(
+        time_s=1.0,
+        track=None,
+        engagement=EngagementState(
+            phase="search",
+            lock_progress_s=0.0,
+            target_id=None,
+            center_error_x_px=None,
+            center_error_y_px=None,
+        ),
+        camera_frame=source_frame,
+    )
+
+    frame = visualizer.render(event)
+
+    assert frame.shape == (360, 640, 3)
+    assert frame.max() > frame.min()
+
+
 def _engagement_state() -> EngagementState:
     return EngagementState(
         phase="track",
