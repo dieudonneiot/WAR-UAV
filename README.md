@@ -18,6 +18,8 @@ This repository is organized for a Python-first combat UAV software stack:
    - `python scripts/check_env.py`
 4. Run the smoke tests:
    - `pytest`
+5. Run the visual simulation:
+   - `python scripts/run_visual_simulation.py`
 
 ## Project Layout
 
@@ -31,3 +33,13 @@ This repository is organized for a Python-first combat UAV software stack:
 - `scripts`: setup and validation scripts
 - `tests`: starter tests
 
+## Simulation
+
+Start with the repo-native visual simulation when you want to see the
+vision-to-mission loop without external simulator setup:
+
+```powershell
+python scripts/run_visual_simulation.py
+```
+
+For details on the Gazebo/ArduPilot SITL direction, see `docs/simulation.md`.
