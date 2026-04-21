@@ -46,6 +46,15 @@ For a saved video:
 This replaces synthetic detections with real Ultralytics detections while keeping
 the same tracker, engagement controller, and visual dashboard.
 
+Useful flags while tuning detection and tracking accuracy:
+
+- `--confidence`: raise it to reduce false positives.
+- `--iou`: adjust YOLO non-maximum suppression.
+- `--imgsz`: increase it for small distant targets when hardware can handle it.
+- `--min-box-area`: ignore tiny noisy boxes.
+- `--smoothing`: reduce jitter in the selected target track.
+- `--max-missed-frames`: keep a target alive briefly through dropped detections.
+
 The screenshot target is a full stack:
 
 - Gazebo Sim for world and aircraft visualization

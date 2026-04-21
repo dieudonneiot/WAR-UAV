@@ -73,3 +73,27 @@ def test_engagement_resets_lock_progress_when_target_moves_off_center() -> None:
 
     assert state.phase == "track"
     assert state.lock_progress_s == 0.0
+
+
+def test_engagement_does_not_accumulate_lock_on_stale_track() -> None:
+    manager = MissionManager(mission_name="test")
+    controller = EngagementController(
+        EngagementConfig(image_width=1920, image_height=1200, lock_duration_s=2.0)
+    )
+    stale_track = TrackState(
+        target_id=1,
+        center_x=960,
+        center_y=600,
+        confidence=0.4,
+        class_id=0,
+        label="uav",
+        width=80,
+        height=50,
+        is_confirmed=False,
+        missed_frames=1,
+    )
+
+    state = controller.update(manager, track=stale_track, dt_s=1.0)
+
+    assert state.phase == "track"
+    assert state.lock_progress_s == 0.0

@@ -20,6 +20,16 @@ def main() -> None:
     parser.add_argument("--source", default="0", help="Camera index, video path, or image stream source.")
     parser.add_argument("--model", default="yolov8n.pt", help="Ultralytics model path or model name.")
     parser.add_argument("--confidence", type=float, default=0.25, help="Detection confidence threshold.")
+    parser.add_argument("--iou", type=float, default=0.45, help="Ultralytics NMS IoU threshold.")
+    parser.add_argument("--imgsz", type=int, default=0, help="YOLO inference image size. 0 uses model default.")
+    parser.add_argument("--min-box-area", type=float, default=0.0, help="Ignore smaller boxes in pixels.")
+    parser.add_argument(
+        "--max-missed-frames",
+        type=int,
+        default=3,
+        help="Keep the last target visible for this many missed frames.",
+    )
+    parser.add_argument("--smoothing", type=float, default=0.65, help="Track smoothing factor from 0 to 1.")
     parser.add_argument("--lock-duration-s", type=float, default=4.0, help="Seconds required to lock.")
     parser.add_argument("--max-frames", type=int, default=0, help="Stop after this many frames. 0 means no limit.")
     parser.add_argument("--headless", action="store_true", help="Save the last frame instead of opening a GUI.")
@@ -31,8 +41,18 @@ def main() -> None:
     args = parser.parse_args()
 
     console = Console()
-    detector = TargetDetector(model_path=args.model, confidence_threshold=args.confidence)
-    tracker = TargetTracker(min_confidence=args.confidence)
+    detector = TargetDetector(
+        model_path=args.model,
+        confidence_threshold=args.confidence,
+        iou_threshold=args.iou,
+        image_size=None if args.imgsz <= 0 else args.imgsz,
+        min_box_area_px=args.min_box_area,
+    )
+    tracker = TargetTracker(
+        min_confidence=args.confidence,
+        max_missed_frames=args.max_missed_frames,
+        smoothing_alpha=args.smoothing,
+    )
     manager = MissionManager(mission_name="vision_pipeline")
 
     last_dashboard = None

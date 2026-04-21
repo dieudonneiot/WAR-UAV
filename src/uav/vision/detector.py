@@ -34,20 +34,52 @@ class Detection:
     def height(self) -> float:
         return self.y_max - self.y_min
 
+    @property
+    def area(self) -> float:
+        return self.width * self.height
+
+    @property
+    def aspect_ratio(self) -> float:
+        if self.height <= 0:
+            return 0.0
+        return self.width / self.height
+
 
 class TargetDetector:
     def __init__(
         self,
         model_path: str | Path,
         confidence_threshold: float = 0.25,
+        iou_threshold: float = 0.45,
+        image_size: int | None = None,
         target_class_ids: set[int] | None = None,
+        min_box_area_px: float = 0.0,
+        max_box_area_ratio: float = 1.0,
+        min_aspect_ratio: float = 0.05,
+        max_aspect_ratio: float = 20.0,
     ) -> None:
         self.model = YOLO(str(model_path))
         self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.image_size = image_size
         self.target_class_ids = target_class_ids
+        self.min_box_area_px = min_box_area_px
+        self.max_box_area_ratio = max_box_area_ratio
+        self.min_aspect_ratio = min_aspect_ratio
+        self.max_aspect_ratio = max_aspect_ratio
 
     def predict(self, frame: Any) -> list[Detection]:
-        results = self.model(frame, verbose=False)
+        options: dict[str, Any] = {
+            "verbose": False,
+            "conf": self.confidence_threshold,
+            "iou": self.iou_threshold,
+        }
+        if self.image_size is not None:
+            options["imgsz"] = self.image_size
+        if self.target_class_ids is not None:
+            options["classes"] = sorted(self.target_class_ids)
+
+        results = self.model(frame, **options)
         detections: list[Detection] = []
         for result in results:
             detections.extend(self._detections_from_result(result))
@@ -63,6 +95,7 @@ class TargetDetector:
         class_ids = _values(getattr(boxes, "cls", []))
         track_ids = _optional_values(getattr(boxes, "id", None), len(xyxy_rows))
         names = getattr(result, "names", None) or getattr(self.model, "names", {})
+        frame_area = _frame_area(result)
 
         detections: list[Detection] = []
         for xyxy, confidence, class_id, track_id in zip(
@@ -76,20 +109,31 @@ class TargetDetector:
                 continue
 
             x_min, y_min, x_max, y_max = [float(value) for value in xyxy[:4]]
-            detections.append(
-                Detection(
-                    class_id=class_id_int,
-                    label=_label_for(names, class_id_int),
-                    confidence=confidence_float,
-                    x_min=x_min,
-                    y_min=y_min,
-                    x_max=x_max,
-                    y_max=y_max,
-                    track_id=None if track_id is None else int(track_id),
-                )
+            detection = Detection(
+                class_id=class_id_int,
+                label=_label_for(names, class_id_int),
+                confidence=confidence_float,
+                x_min=x_min,
+                y_min=y_min,
+                x_max=x_max,
+                y_max=y_max,
+                track_id=None if track_id is None else int(track_id),
             )
+            if not self._passes_geometry_filters(detection, frame_area):
+                continue
 
-        return detections
+            detections.append(detection)
+
+        return sorted(detections, key=lambda detection: detection.confidence, reverse=True)
+
+    def _passes_geometry_filters(self, detection: Detection, frame_area: float | None) -> bool:
+        if detection.width <= 0 or detection.height <= 0:
+            return False
+        if detection.area < self.min_box_area_px:
+            return False
+        if frame_area is not None and detection.area / frame_area > self.max_box_area_ratio:
+            return False
+        return self.min_aspect_ratio <= detection.aspect_ratio <= self.max_aspect_ratio
 
 
 def _to_builtin(value: Any) -> Any:
@@ -123,6 +167,14 @@ def _optional_values(value: Any, count: int) -> list[int | None]:
     if built is None:
         return [None] * count
     return built
+
+
+def _frame_area(result: Any) -> float | None:
+    shape = getattr(result, "orig_shape", None)
+    if shape is None or len(shape) < 2:
+        return None
+    height, width = shape[:2]
+    return float(height * width)
 
 
 def _label_for(names: Any, class_id: int) -> str:

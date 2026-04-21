@@ -104,14 +104,14 @@ class SimulationVisualizer:
             )
             box_w = max(28, int(event.track.width / self.config.image_width * view_w))
             box_h = max(20, int(event.track.height / self.config.image_height * view_h))
-            color = (50, 220, 80) if event.engagement.lock_active else (40, 180, 255)
+            color = self._track_color(event)
             top_left = (target_center[0] - box_w // 2, target_center[1] - box_h // 2)
             bottom_right = (target_center[0] + box_w // 2, target_center[1] + box_h // 2)
             cv2.rectangle(canvas, top_left, bottom_right, color, 2)
             cv2.line(canvas, center, target_center, color, 1)
             cv2.putText(
                 canvas,
-                f"{event.track.label} {event.track.confidence:.2f}",
+                self._track_label(event),
                 (top_left[0], max(view_y + 20, top_left[1] - 8)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
@@ -167,8 +167,9 @@ class SimulationVisualizer:
             offset_x = int((event.track.center_x - self.config.image_width / 2) * 0.09)
             offset_y = int((event.track.center_y - self.config.image_height / 2) * 0.09)
             target = (ownship[0] + offset_x, ownship[1] + offset_y - 120)
-            cv2.circle(canvas, target, 8, (40, 180, 255), -1)
-            cv2.line(canvas, ownship, target, (40, 180, 255), 1)
+            color = self._track_color(event)
+            cv2.circle(canvas, target, 8, color, -1)
+            cv2.line(canvas, ownship, target, color, 1)
 
     def _draw_telemetry(
         self,
@@ -178,7 +179,7 @@ class SimulationVisualizer:
     ) -> None:
         x, y, _, _ = rect
         target_id = "-" if event.track is None else str(event.track.target_id)
-        color = (50, 220, 80) if event.engagement.lock_active else (40, 180, 255)
+        color = self._track_color(event)
         lines = [
             f"t={event.time_s:.1f}s",
             f"phase={event.engagement.phase}",
@@ -230,3 +231,16 @@ class SimulationVisualizer:
         if value is None:
             return "-"
         return f"{value:.0f}px"
+
+    def _track_color(self, event: SimulationEvent) -> tuple[int, int, int]:
+        if event.track is not None and not event.track.is_confirmed:
+            return (150, 150, 150)
+        if event.engagement.lock_active:
+            return (50, 220, 80)
+        return (40, 180, 255)
+
+    def _track_label(self, event: SimulationEvent) -> str:
+        if event.track is None:
+            return ""
+        suffix = "lost" if not event.track.is_confirmed else f"{event.track.confidence:.2f}"
+        return f"{event.track.label} {suffix}"

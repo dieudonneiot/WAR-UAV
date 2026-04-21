@@ -50,7 +50,7 @@ class EngagementController:
             )
 
         center_error_x_px, center_error_y_px = self._center_error_px(track)
-        if self._is_centered(center_error_x_px, center_error_y_px):
+        if track.is_confirmed and self._is_centered(center_error_x_px, center_error_y_px):
             self._lock_progress_s += dt_s
         else:
             self._lock_progress_s = 0.0

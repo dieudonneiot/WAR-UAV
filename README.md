@@ -57,3 +57,9 @@ Use a video file instead of a webcam by passing its path:
 ```powershell
 python scripts/run_vision_pipeline.py --source data/sample.mp4 --model yolov8n.pt
 ```
+
+Useful tuning flags:
+
+```powershell
+python scripts/run_vision_pipeline.py --source data/sample.mp4 --model yolov8n.pt --confidence 0.35 --iou 0.5 --imgsz 960 --min-box-area 80 --smoothing 0.7 --max-missed-frames 3
+```
