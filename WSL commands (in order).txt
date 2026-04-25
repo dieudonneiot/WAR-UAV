@@ -1,0 +1,47 @@
+WSL commands (in order)
+
+# 1. Enter the cloned repo
+git clone --recurse-submodules git@github.com:ArduPilot/ardupilot.git
+
+cd ardupilot
+
+# 2. Install all ArduPilot build dependencies (~5 min)
+Tools/environment_install/install-prereqs-ubuntu.sh -y
+
+# 3. Reload your shell profile (picks up new PATH entries)
+. ~/.profile
+
+# 4. Launch ArduPlane SITL
+#    First run auto-compiles ArduPlane — takes ~10 min, subsequent runs are instant
+#    --out exposes port 5762 to Windows over localhost
+sim_vehicle.py -v ArduPlane --console --map --out=tcp:0.0.0.0:5762
+
+Windows commands (after SITL is running)
+
+# In your TEKNOFEST2026 folder, venv activated:
+
+# Option A — fly the real square mission via MAVLink
+python scripts/run_square_mission.py
+
+# Option B — visual simulation only (no SITL needed)
+python scripts/run_square_simulation.py
+
+
+SIMPLE
+
+cd ardupilot
+sim_vehicle.py -v ArduPlane --console --map --out=tcp:0.0.0.0:5762
+
+Wait until you see this in the ArduPlane console before moving to Windows:
+
+
+New connection on SERIAL1
+and the MAVProxy status bar shows GPS: OK.
+
+
+Windows PowerShell terminal
+
+cd C:\Dev\Personal\TEKNOFEST2026
+.venv\Scripts\Activate.ps1
+python scripts/run_square_mission.py
+That's it — two terminals, four commands total. WSL first, Windows second only after SITL is fully ready.
