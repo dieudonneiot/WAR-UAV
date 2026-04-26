@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 
 from uav.mavlink.client import MavlinkClient
@@ -33,6 +34,74 @@ def compute_square_waypoints(
         (home_lat_e7,       home_lon_e7 + off),     # WP3 – east
         (home_lat_e7,       home_lon_e7),            # WP4 – home
     ]
+
+
+def compute_triangle_waypoints(
+    home_lat_e7: int,
+    home_lon_e7: int,
+    side_m: float = 500.0,
+) -> list[tuple[int, int]]:
+    """Return three waypoints forming a simple triangle north/east of home."""
+    off = meters_to_e7(side_m)
+    half = meters_to_e7(side_m / 2.0)
+    return [
+        (home_lat_e7 + off, home_lon_e7),           # WP1 - north
+        (home_lat_e7 + half, home_lon_e7 + off),    # WP2 - northeast
+        (home_lat_e7,       home_lon_e7),           # WP3 - home
+    ]
+
+
+def compute_line_waypoints(
+    home_lat_e7: int,
+    home_lon_e7: int,
+    side_m: float = 500.0,
+) -> list[tuple[int, int]]:
+    """Return an out-and-back line mission north of home."""
+    off = meters_to_e7(side_m)
+    return [
+        (home_lat_e7 + off, home_lon_e7),           # WP1 - outbound
+        (home_lat_e7,       home_lon_e7),           # WP2 - home
+    ]
+
+
+def compute_circle_waypoints(
+    home_lat_e7: int,
+    home_lon_e7: int,
+    radius_m: float = 250.0,
+    points: int = 8,
+) -> list[tuple[int, int]]:
+    """Approximate a circle around home with evenly spaced waypoints."""
+    if points < 3:
+        raise ValueError("Circle missions require at least 3 points.")
+
+    radius_e7 = meters_to_e7(radius_m)
+    waypoints: list[tuple[int, int]] = []
+    for i in range(points):
+        theta = 2.0 * math.pi * i / points
+        north = int(round(math.cos(theta) * radius_e7))
+        east = int(round(math.sin(theta) * radius_e7))
+        waypoints.append((home_lat_e7 + north, home_lon_e7 + east))
+    waypoints.append((home_lat_e7, home_lon_e7))
+    return waypoints
+
+
+def compute_mission_waypoints(
+    shape: str,
+    home_lat_e7: int,
+    home_lon_e7: int,
+    size_m: float = 500.0,
+) -> list[tuple[int, int]]:
+    """Return waypoints for a named mission shape."""
+    shape = shape.lower()
+    if shape == "square":
+        return compute_square_waypoints(home_lat_e7, home_lon_e7, size_m)
+    if shape == "triangle":
+        return compute_triangle_waypoints(home_lat_e7, home_lon_e7, size_m)
+    if shape == "line":
+        return compute_line_waypoints(home_lat_e7, home_lon_e7, size_m)
+    if shape == "circle":
+        return compute_circle_waypoints(home_lat_e7, home_lon_e7, radius_m=size_m / 2.0)
+    raise ValueError(f"Unknown mission shape {shape!r}.")
 
 
 class WaypointNavigator:

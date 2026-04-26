@@ -18,10 +18,11 @@ Python-first combat UAV software stack covering:
    - [Windows — Python environment](#windows--python-environment)
 3. [Running the SITL Simulation](#running-the-sitl-simulation)
 4. [Known Issues and Bugs](#known-issues-and-bugs)
-5. [Simulation Tiers](#simulation-tiers)
-6. [Script Reference](#script-reference)
-7. [Project Layout](#project-layout)
-8. [Configuration](#configuration)
+5. [Flight Control](#flight-control)
+6. [Simulation Tiers](#simulation-tiers)
+7. [Script Reference](#script-reference)
+8. [Project Layout](#project-layout)
+9. [Configuration](#configuration)
 
 ---
 
@@ -184,7 +185,8 @@ Taking off to 50 m …
 ```powershell
 python scripts/run_square_mission.py `
     --connection udpin:0.0.0.0:14550 `
-    --side-m 300 `
+    --shape triangle `
+    --size-m 300 `
     --alt-m 80 `
     --acceptance-radius 50
 ```
@@ -192,7 +194,9 @@ python scripts/run_square_mission.py `
 | Argument | Default | Description |
 | -------- | ------- | ----------- |
 | `--connection` | `udpin:0.0.0.0:14550` | MAVLink connection string |
-| `--side-m` | `500` | Square side length in metres |
+| `--shape` | `square` | Mission shape: `square`, `triangle`, `line`, or `circle` |
+| `--size-m` | `500` | Mission size in metres; circle uses this as diameter |
+| `--side-m` | `500` | Deprecated alias for `--size-m` |
 | `--alt-m` | `50` | Cruise altitude in metres AGL |
 | `--acceptance-radius` | `65` | Waypoint reached threshold in metres |
 
@@ -238,6 +242,14 @@ Set `ARMING_CHECK=0` via the MAVProxy console first as a sanity check:
 ```text
 MAVProxy> param set ARMING_CHECK 0
 ```
+
+---
+
+## Flight Control
+
+See [docs/flight_control.md](docs/flight_control.md) for the control reference:
+MAVProxy commands, Python control helpers, useful ArduPlane modes, telemetry,
+and the implementation roadmap.
 
 ---
 
