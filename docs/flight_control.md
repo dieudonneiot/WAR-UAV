@@ -111,6 +111,27 @@ at that output:
 python scripts/loiter.py --direct --connection udpin:0.0.0.0:14551
 ```
 
+## Live Telemetry
+
+Use the telemetry script to watch the latest mission phase, requested flight
+mode, position, altitude, waypoint distance, and data age:
+
+```powershell
+python scripts/telemetry.py
+```
+
+When `run_square_mission.py` is already running, telemetry is served through the
+same local command server as RTL/LOITER. That avoids binding to MAVLink port
+`14550` twice.
+
+Useful options:
+
+```powershell
+python scripts/telemetry.py --interval-s 0.5
+python scripts/telemetry.py --count 10
+python scripts/telemetry.py --direct
+```
+
 ## Key ArduPlane Modes
 
 ```text
@@ -189,7 +210,7 @@ aircraft at the mission level: take off, go to a point, loiter, or return home.
 1. CLI mission shape selection: square, triangle, circle, line. Done.
 2. Emergency RTL command. Done.
 3. Loiter command. Done.
-4. Live telemetry printout.
+4. Live telemetry printout. Done.
 5. Waypoint upload using AUTO mode.
 6. Interactive keyboard control panel.
 7. Web dashboard with TAKEOFF, GUIDED, RTL, LOITER, and status controls.

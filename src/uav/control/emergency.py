@@ -19,6 +19,7 @@ class _EmergencyTCPServer(socketserver.ThreadingTCPServer):
         handler_class: type[socketserver.BaseRequestHandler],
         on_rtl: Callable[[], str],
         on_loiter: Callable[[], str] | None = None,
+        on_status: Callable[[], str] | None = None,
     ) -> None:
         super().__init__(server_address, handler_class)
         self.handlers = {
@@ -26,6 +27,8 @@ class _EmergencyTCPServer(socketserver.ThreadingTCPServer):
         }
         if on_loiter is not None:
             self.handlers["LOITER"] = on_loiter
+        if on_status is not None:
+            self.handlers["STATUS"] = on_status
 
 
 class _EmergencyRequestHandler(socketserver.BaseRequestHandler):
@@ -52,6 +55,7 @@ class EmergencyCommandServer:
         self,
         on_rtl: Callable[[], str],
         on_loiter: Callable[[], str] | None = None,
+        on_status: Callable[[], str] | None = None,
         host: str = DEFAULT_EMERGENCY_HOST,
         port: int = DEFAULT_EMERGENCY_PORT,
     ) -> None:
@@ -59,6 +63,7 @@ class EmergencyCommandServer:
         self.port = port
         self._on_rtl = on_rtl
         self._on_loiter = on_loiter
+        self._on_status = on_status
         self._server: _EmergencyTCPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -68,6 +73,7 @@ class EmergencyCommandServer:
             _EmergencyRequestHandler,
             self._on_rtl,
             self._on_loiter,
+            self._on_status,
         )
         self.port = int(self._server.server_address[1])
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
@@ -116,3 +122,12 @@ def request_loiter_via_local_server(
 ) -> str | None:
     """Ask a running mission process to switch to LOITER, or return None if unavailable."""
     return request_command_via_local_server("LOITER", host, port, timeout_s)
+
+
+def request_status_via_local_server(
+    host: str = DEFAULT_EMERGENCY_HOST,
+    port: int = DEFAULT_EMERGENCY_PORT,
+    timeout_s: float = 1.0,
+) -> str | None:
+    """Ask a running mission process for its latest telemetry snapshot."""
+    return request_command_via_local_server("STATUS", host, port, timeout_s)

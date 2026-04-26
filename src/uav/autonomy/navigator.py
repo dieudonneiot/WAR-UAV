@@ -113,12 +113,18 @@ class WaypointNavigator:
     def fly_to(self, lat_e7: int, lon_e7: int, alt_m: float) -> None:
         self.client.reposition(lat_e7, lon_e7, alt_m)
 
-    def wait_until_reached(self, should_stop: Callable[[], bool] | None = None) -> bool:
+    def wait_until_reached(
+        self,
+        should_stop: Callable[[], bool] | None = None,
+        on_nav_status: Callable[[float | None], None] | None = None,
+    ) -> bool:
         """Block until NAV_CONTROLLER_OUTPUT.wp_dist drops below acceptance_radius_m."""
         while True:
             if should_stop is not None and should_stop():
                 return False
             dist = self.client.get_nav_status()
+            if on_nav_status is not None:
+                on_nav_status(dist)
             if dist is not None:
                 print(f"  wp_dist={dist:.0f} m")
                 if dist < self.acceptance_radius_m:
@@ -130,6 +136,7 @@ class WaypointNavigator:
         target_alt_m: float,
         timeout_s: float = 120.0,
         should_stop: Callable[[], bool] | None = None,
+        on_position: Callable[[int, int, float], None] | None = None,
     ) -> bool:
         """Use ArduPlane TAKEOFF mode until relative altitude reaches *target_alt_m*."""
         self.client.set_mode("TAKEOFF")
@@ -140,7 +147,9 @@ class WaypointNavigator:
         while True:
             if should_stop is not None and should_stop():
                 return False
-            _, _, alt = self.client.get_position()
+            lat, lon, alt = self.client.get_position()
+            if on_position is not None:
+                on_position(lat, lon, alt)
             print(f"  alt={alt:.1f} m")
             if alt >= target_alt_m:
                 print(f"  Reached {alt:.1f} m.")

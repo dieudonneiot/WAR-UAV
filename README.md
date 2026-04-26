@@ -174,6 +174,8 @@ window; if this mission script is already using MAVLink port `14550`, the
 emergency command automatically routes through the running mission process.
 To hold position instead of returning home, run `python scripts/loiter.py` from
 another PowerShell window.
+To watch live mission telemetry, run `python scripts/telemetry.py` from another
+PowerShell window.
 
 The script will print its progress:
 
@@ -346,6 +348,7 @@ Windows        → run_square_mission.py (mission computer)
 | `scripts/run_square_mission.py` | Real MAVLink mission to ArduPilot SITL (Tier 3) |
 | `scripts/emergency_rtl.py` | Send an immediate Return-to-Launch command |
 | `scripts/loiter.py` | Command the aircraft to loiter near its current position |
+| `scripts/telemetry.py` | Print live mission telemetry |
 | `scripts/run_simulation_test.py` | Automated vision simulation test |
 
 ---

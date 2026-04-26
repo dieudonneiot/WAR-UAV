@@ -13,6 +13,7 @@ import time
 from uav.autonomy.mission_manager import MissionManager
 from uav.autonomy.navigator import WaypointNavigator, compute_mission_waypoints
 from uav.control.emergency import DEFAULT_EMERGENCY_PORT, EmergencyCommandServer
+from uav.control.telemetry import TelemetryState
 from uav.mavlink.client import MavlinkClient
 
 
@@ -42,12 +43,18 @@ def main() -> None:
     manager = MissionManager(mission_name=f"{args.shape}_mission")
     client = MavlinkClient(args.connection)
     nav = WaypointNavigator(client, acceptance_radius_m=args.acceptance_radius)
+    telemetry = TelemetryState()
+
+    def transition_to(phase: str) -> None:
+        manager.transition_to(phase)
+        telemetry.update_phase(phase)
 
     def request_emergency_rtl() -> str:
         nonlocal requested_command
         with command_lock:
             requested_command = "RTL"
         external_command_requested.set()
+        telemetry.update_mode("RTL")
         client.return_to_launch()
         return "RTL requested by running mission"
 
@@ -56,6 +63,7 @@ def main() -> None:
         with command_lock:
             requested_command = "LOITER"
         external_command_requested.set()
+        telemetry.update_mode("LOITER")
         client.loiter()
         return "LOITER requested by running mission"
 
@@ -70,6 +78,7 @@ def main() -> None:
     emergency_server = EmergencyCommandServer(
         request_emergency_rtl,
         on_loiter=request_loiter,
+        on_status=telemetry.status_line,
         port=args.emergency_port,
     )
     try:
@@ -85,44 +94,56 @@ def main() -> None:
         client.disable_arming_checks()
         time.sleep(1)
 
-        manager.transition_to("takeoff")
+        transition_to("takeoff")
         print(f"Taking off to {args.alt_m:.0f} m …")
-        takeoff_complete = nav.climb_to(args.alt_m, should_stop=external_command_requested.is_set)
+        telemetry.update_mode("TAKEOFF")
+        takeoff_complete = nav.climb_to(
+            args.alt_m,
+            should_stop=external_command_requested.is_set,
+            on_position=telemetry.update_position,
+        )
         if not takeoff_complete:
             print(f"\n{get_requested_command()} requested during takeoff.")
 
         if takeoff_complete and not external_command_requested.is_set():
             print("Downloading home GPS position …")
-            home_lat_e7, home_lon_e7, _ = client.get_position()
+            home_lat_e7, home_lon_e7, home_alt_m = client.get_position()
+            telemetry.update_position(home_lat_e7, home_lon_e7, home_alt_m)
             waypoints = compute_mission_waypoints(args.shape, home_lat_e7, home_lon_e7, size_m)
             print(f"{args.shape.title()} waypoints (1e-7 deg): {waypoints}")
 
         if takeoff_complete and not external_command_requested.is_set():
             print("Switching to GUIDED …")
+            telemetry.update_mode("GUIDED")
             client.set_mode("GUIDED")
 
-            manager.transition_to("navigate")
+            transition_to("navigate")
             for i, (lat, lon) in enumerate(waypoints):
                 if external_command_requested.is_set():
                     break
                 print(f"\nFlying to WP{i + 1} …")
                 nav.fly_to(lat, lon, args.alt_m)
-                reached = nav.wait_until_reached(should_stop=external_command_requested.is_set)
+                reached = nav.wait_until_reached(
+                    should_stop=external_command_requested.is_set,
+                    on_nav_status=telemetry.update_wp_dist,
+                )
                 if not reached:
                     break
 
         if external_command_requested.is_set():
             command = get_requested_command()
             print(f"\n{command} requested. Mission navigation stopped.")
-            manager.transition_to(command.lower())
+            transition_to(command.lower())
         else:
             print("\nMission complete. Switching to RTL …")
-            manager.transition_to("rtl")
+            transition_to("rtl")
+            telemetry.update_mode("RTL")
             client.return_to_launch()
     except KeyboardInterrupt:
         print("\nEmergency interrupt received. Switching to RTL …")
         external_command_requested.set()
-        manager.transition_to("rtl")
+        transition_to("rtl")
+        telemetry.update_mode("RTL")
         client.return_to_launch()
     finally:
         emergency_server.stop()
