@@ -164,6 +164,36 @@ The local RTL, LOITER, and telemetry scripts keep working while AUTO mode is
 running because they talk to the mission process instead of trying to bind to
 MAVLink port `14550`.
 
+## Interactive Control Panel
+
+Use the terminal control panel when you want one place for common live commands:
+
+```powershell
+python scripts/control_panel.py
+```
+
+Commands:
+
+```text
+status / s        print latest telemetry
+rtl / r           return to launch and stop the mission route
+loiter / l        loiter near current position and stop the mission route
+mode <name>       switch to an ArduPlane mode, for example mode AUTO
+auto              shortcut for mode AUTO
+guided            shortcut for mode GUIDED
+fbwa              shortcut for mode FBWA
+takeoff           shortcut for mode TAKEOFF
+quit / q          close the panel
+```
+
+Like the standalone RTL, LOITER, and telemetry scripts, the panel talks to the
+running mission process first. If no mission process is available, it falls back
+to direct MAVLink:
+
+```powershell
+python scripts/control_panel.py --direct
+```
+
 ## Key ArduPlane Modes
 
 ```text
@@ -244,5 +274,5 @@ aircraft at the mission level: take off, go to a point, loiter, or return home.
 3. Loiter command. Done.
 4. Live telemetry printout. Done.
 5. Waypoint upload using AUTO mode. Done.
-6. Interactive keyboard control panel.
+6. Interactive keyboard control panel. Done.
 7. Web dashboard with TAKEOFF, GUIDED, RTL, LOITER, and status controls.

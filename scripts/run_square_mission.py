@@ -71,6 +71,16 @@ def main() -> None:
         client.loiter()
         return "LOITER requested by running mission"
 
+    def request_mode(mode_name: str) -> str:
+        nonlocal requested_command
+        mode_name = mode_name.upper()
+        with command_lock:
+            requested_command = mode_name
+        external_command_requested.set()
+        telemetry.update_mode(mode_name)
+        client.set_mode(mode_name)
+        return f"{mode_name} requested by running mission"
+
     def get_requested_command() -> str:
         with command_lock:
             return requested_command
@@ -83,11 +93,12 @@ def main() -> None:
         request_emergency_rtl,
         on_loiter=request_loiter,
         on_status=telemetry.status_line,
+        on_mode=request_mode,
         port=args.emergency_port,
     )
     try:
         emergency_server.start()
-        print(f"Emergency RTL server listening on 127.0.0.1:{emergency_server.port}.")
+        print(f"Flight command server listening on 127.0.0.1:{emergency_server.port}.")
     except OSError as exc:
         print(f"Warning: emergency RTL server disabled ({exc}). Ctrl+C still works.")
 

@@ -176,6 +176,7 @@ To hold position instead of returning home, run `python scripts/loiter.py` from
 another PowerShell window.
 To watch live mission telemetry, run `python scripts/telemetry.py` from another
 PowerShell window.
+For an interactive terminal control panel, run `python scripts/control_panel.py`.
 
 The script will print its progress:
 
@@ -358,6 +359,7 @@ Windows        → run_square_mission.py (mission computer)
 | `scripts/emergency_rtl.py` | Send an immediate Return-to-Launch command |
 | `scripts/loiter.py` | Command the aircraft to loiter near its current position |
 | `scripts/telemetry.py` | Print live mission telemetry |
+| `scripts/control_panel.py` | Interactive terminal panel for status, RTL, loiter, and mode changes |
 | `scripts/run_simulation_test.py` | Automated vision simulation test |
 
 ---

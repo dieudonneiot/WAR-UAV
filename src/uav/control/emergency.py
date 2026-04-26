@@ -20,11 +20,13 @@ class _EmergencyTCPServer(socketserver.ThreadingTCPServer):
         on_rtl: Callable[[], str],
         on_loiter: Callable[[], str] | None = None,
         on_status: Callable[[], str] | None = None,
+        on_mode: Callable[[str], str] | None = None,
     ) -> None:
         super().__init__(server_address, handler_class)
         self.handlers = {
             "RTL": on_rtl,
         }
+        self.mode_handler = on_mode
         if on_loiter is not None:
             self.handlers["LOITER"] = on_loiter
         if on_status is not None:
@@ -33,10 +35,16 @@ class _EmergencyTCPServer(socketserver.ThreadingTCPServer):
 
 class _EmergencyRequestHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
-        command = self.request.recv(1024).decode("utf-8", errors="replace").strip().upper()
+        command_line = self.request.recv(1024).decode("utf-8", errors="replace").strip().upper()
+        command, _, argument = command_line.partition(" ")
         server = self.server
         if not isinstance(server, _EmergencyTCPServer):
             self.request.sendall(b"ERROR unsupported server\n")
+            return
+
+        if command == "MODE" and server.mode_handler is not None and argument:
+            response = server.mode_handler(argument)
+            self.request.sendall(f"OK {response}\n".encode("utf-8"))
             return
 
         handler = server.handlers.get(command)
@@ -56,6 +64,7 @@ class EmergencyCommandServer:
         on_rtl: Callable[[], str],
         on_loiter: Callable[[], str] | None = None,
         on_status: Callable[[], str] | None = None,
+        on_mode: Callable[[str], str] | None = None,
         host: str = DEFAULT_EMERGENCY_HOST,
         port: int = DEFAULT_EMERGENCY_PORT,
     ) -> None:
@@ -64,6 +73,7 @@ class EmergencyCommandServer:
         self._on_rtl = on_rtl
         self._on_loiter = on_loiter
         self._on_status = on_status
+        self._on_mode = on_mode
         self._server: _EmergencyTCPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -74,6 +84,7 @@ class EmergencyCommandServer:
             self._on_rtl,
             self._on_loiter,
             self._on_status,
+            self._on_mode,
         )
         self.port = int(self._server.server_address[1])
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
@@ -131,3 +142,13 @@ def request_status_via_local_server(
 ) -> str | None:
     """Ask a running mission process for its latest telemetry snapshot."""
     return request_command_via_local_server("STATUS", host, port, timeout_s)
+
+
+def request_mode_via_local_server(
+    mode_name: str,
+    host: str = DEFAULT_EMERGENCY_HOST,
+    port: int = DEFAULT_EMERGENCY_PORT,
+    timeout_s: float = 1.0,
+) -> str | None:
+    """Ask a running mission process to switch flight mode."""
+    return request_command_via_local_server(f"MODE {mode_name}", host, port, timeout_s)
