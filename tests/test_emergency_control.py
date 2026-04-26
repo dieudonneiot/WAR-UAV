@@ -1,0 +1,22 @@
+from __future__ import annotations
+
+from uav.control.emergency import EmergencyCommandServer, request_rtl_via_local_server
+
+
+def test_emergency_server_accepts_rtl_command() -> None:
+    requests: list[str] = []
+    server = EmergencyCommandServer(lambda: requests.append("RTL") or "RTL requested", port=0)
+
+    try:
+        server.start()
+        response = request_rtl_via_local_server(port=server.port)
+    finally:
+        server.stop()
+
+    assert response == "OK RTL requested"
+    assert requests == ["RTL"]
+
+
+def test_emergency_request_returns_none_when_server_is_absent() -> None:
+    assert request_rtl_via_local_server(port=9, timeout_s=0.1) is None
+

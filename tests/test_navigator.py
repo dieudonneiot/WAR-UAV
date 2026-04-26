@@ -18,6 +18,9 @@ class FakeMavlinkClient:
     def set_mode(self, mode_name: str) -> None:
         self.calls.append(("set_mode", mode_name))
 
+    def return_to_launch(self) -> None:
+        self.set_mode("RTL")
+
     def arm(self) -> None:
         self.calls.append(("arm", None))
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Callable
 
 from uav.mavlink.client import MavlinkClient
 
@@ -112,17 +113,24 @@ class WaypointNavigator:
     def fly_to(self, lat_e7: int, lon_e7: int, alt_m: float) -> None:
         self.client.reposition(lat_e7, lon_e7, alt_m)
 
-    def wait_until_reached(self) -> None:
+    def wait_until_reached(self, should_stop: Callable[[], bool] | None = None) -> bool:
         """Block until NAV_CONTROLLER_OUTPUT.wp_dist drops below acceptance_radius_m."""
         while True:
+            if should_stop is not None and should_stop():
+                return False
             dist = self.client.get_nav_status()
             if dist is not None:
                 print(f"  wp_dist={dist:.0f} m")
                 if dist < self.acceptance_radius_m:
                     print("  Waypoint reached.")
-                    break
+                    return True
 
-    def climb_to(self, target_alt_m: float, timeout_s: float = 120.0) -> None:
+    def climb_to(
+        self,
+        target_alt_m: float,
+        timeout_s: float = 120.0,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> bool:
         """Use ArduPlane TAKEOFF mode until relative altitude reaches *target_alt_m*."""
         self.client.set_mode("TAKEOFF")
         time.sleep(1)
@@ -130,11 +138,13 @@ class WaypointNavigator:
 
         deadline = time.monotonic() + timeout_s
         while True:
+            if should_stop is not None and should_stop():
+                return False
             _, _, alt = self.client.get_position()
             print(f"  alt={alt:.1f} m")
             if alt >= target_alt_m:
                 print(f"  Reached {alt:.1f} m.")
-                break
+                return True
             if time.monotonic() >= deadline:
                 raise TimeoutError(
                     f"TAKEOFF did not reach {target_alt_m:.1f} m within {timeout_s:.0f}s "

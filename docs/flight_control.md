@@ -50,6 +50,42 @@ client.reposition(lat_e7, lon_e7, alt_m)
 client.get_position()
 ```
 
+## Emergency RTL
+
+The active mission script has a built-in emergency path:
+
+```powershell
+python scripts/run_square_mission.py
+```
+
+Press `Ctrl+C` in that same PowerShell window to switch the aircraft to `RTL`.
+The script catches the interrupt, sends `RTL`, waits briefly so the command is
+processed, and then exits.
+
+There is also a standalone command:
+
+```powershell
+python scripts/emergency_rtl.py
+```
+
+By default, the running mission opens a local emergency command server on
+`127.0.0.1:8765`. The standalone script tries that local command server first,
+so it does not need to bind to MAVLink port `14550` while the mission is already
+using it.
+
+The fallback path is direct MAVLink. Use it when no mission script is running:
+
+```powershell
+python scripts/emergency_rtl.py --direct
+```
+
+If you intentionally created a second MAVProxy output, point the direct command
+at that output:
+
+```powershell
+python scripts/emergency_rtl.py --direct --connection udpin:0.0.0.0:14551
+```
+
 ## Key ArduPlane Modes
 
 ```text
@@ -125,11 +161,10 @@ aircraft at the mission level: take off, go to a point, loiter, or return home.
 
 ## Next Implementation Steps
 
-1. CLI mission shape selection: square, triangle, circle, line.
-2. Emergency RTL command.
+1. CLI mission shape selection: square, triangle, circle, line. Done.
+2. Emergency RTL command. Done.
 3. Loiter command.
 4. Live telemetry printout.
 5. Waypoint upload using AUTO mode.
 6. Interactive keyboard control panel.
 7. Web dashboard with TAKEOFF, GUIDED, RTL, LOITER, and status controls.
-

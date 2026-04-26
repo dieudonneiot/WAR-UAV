@@ -168,6 +168,11 @@ port `14550`. The Python mission listens for that stream with
 python scripts/run_square_mission.py
 ```
 
+Press `Ctrl+C` in this PowerShell window at any time to command emergency RTL.
+You can also run `python scripts/emergency_rtl.py` from another PowerShell
+window; if this mission script is already using MAVLink port `14550`, the
+emergency command automatically routes through the running mission process.
+
 The script will print its progress:
 
 ```text
@@ -337,6 +342,7 @@ Windows        → run_square_mission.py (mission computer)
 | `scripts/run_square_simulation.py` | Animated square mission path (Tier 1) |
 | `scripts/run_vision_pipeline.py` | YOLO + tracking + engagement dashboard (Tier 2) |
 | `scripts/run_square_mission.py` | Real MAVLink mission to ArduPilot SITL (Tier 3) |
+| `scripts/emergency_rtl.py` | Send an immediate Return-to-Launch command |
 | `scripts/run_simulation_test.py` | Automated vision simulation test |
 
 ---

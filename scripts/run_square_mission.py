@@ -7,10 +7,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import threading
 import time
 
 from uav.autonomy.mission_manager import MissionManager
 from uav.autonomy.navigator import WaypointNavigator, compute_mission_waypoints
+from uav.control.emergency import DEFAULT_EMERGENCY_PORT, EmergencyCommandServer
 from uav.mavlink.client import MavlinkClient
 
 
@@ -28,45 +30,80 @@ def main() -> None:
                         help="Cruise altitude in metres AGL (default: 50)")
     parser.add_argument("--acceptance-radius", type=float, default=65.0,
                         help="Waypoint acceptance radius in metres (default: 65)")
+    parser.add_argument("--emergency-port", type=int, default=DEFAULT_EMERGENCY_PORT,
+                        help=f"Local emergency command port (default: {DEFAULT_EMERGENCY_PORT})")
     args = parser.parse_args()
 
     size_m = args.size_m if args.size_m != 500.0 or args.side_m == 500.0 else args.side_m
+    emergency_rtl_requested = threading.Event()
 
     manager = MissionManager(mission_name=f"{args.shape}_mission")
     client = MavlinkClient(args.connection)
     nav = WaypointNavigator(client, acceptance_radius_m=args.acceptance_radius)
 
+    def request_emergency_rtl() -> str:
+        emergency_rtl_requested.set()
+        client.return_to_launch()
+        return "RTL requested by running mission"
+
     print(f"Connecting to {args.connection} …")
     client.connect()
     print("Connected.")
 
-    print("Disabling hand-launch safety (TKOFF_THR_MINACC=0) …")
-    client.disable_hand_launch()
-    print("Disabling pre-arm checks (ARMING_CHECK=0) …")
-    client.disable_arming_checks()
-    time.sleep(1)
+    emergency_server = EmergencyCommandServer(request_emergency_rtl, port=args.emergency_port)
+    try:
+        emergency_server.start()
+        print(f"Emergency RTL server listening on 127.0.0.1:{emergency_server.port}.")
+    except OSError as exc:
+        print(f"Warning: emergency RTL server disabled ({exc}). Ctrl+C still works.")
 
-    manager.transition_to("takeoff")
-    print(f"Taking off to {args.alt_m:.0f} m …")
-    nav.climb_to(args.alt_m)
+    try:
+        print("Disabling hand-launch safety (TKOFF_THR_MINACC=0) …")
+        client.disable_hand_launch()
+        print("Disabling pre-arm checks (ARMING_CHECK=0) …")
+        client.disable_arming_checks()
+        time.sleep(1)
 
-    print("Downloading home GPS position …")
-    home_lat_e7, home_lon_e7, _ = client.get_position()
-    waypoints = compute_mission_waypoints(args.shape, home_lat_e7, home_lon_e7, size_m)
-    print(f"{args.shape.title()} waypoints (1e-7 deg): {waypoints}")
+        manager.transition_to("takeoff")
+        print(f"Taking off to {args.alt_m:.0f} m …")
+        takeoff_complete = nav.climb_to(args.alt_m, should_stop=emergency_rtl_requested.is_set)
+        if not takeoff_complete:
+            print("\nEmergency RTL requested during takeoff.")
 
-    print("Switching to GUIDED …")
-    client.set_mode("GUIDED")
+        if takeoff_complete and not emergency_rtl_requested.is_set():
+            print("Downloading home GPS position …")
+            home_lat_e7, home_lon_e7, _ = client.get_position()
+            waypoints = compute_mission_waypoints(args.shape, home_lat_e7, home_lon_e7, size_m)
+            print(f"{args.shape.title()} waypoints (1e-7 deg): {waypoints}")
 
-    manager.transition_to("navigate")
-    for i, (lat, lon) in enumerate(waypoints):
-        print(f"\nFlying to WP{i + 1} …")
-        nav.fly_to(lat, lon, args.alt_m)
-        nav.wait_until_reached()
+        if takeoff_complete and not emergency_rtl_requested.is_set():
+            print("Switching to GUIDED …")
+            client.set_mode("GUIDED")
 
-    print("\nMission complete. Switching to RTL …")
-    manager.transition_to("rtl")
-    client.set_mode("RTL")
+            manager.transition_to("navigate")
+            for i, (lat, lon) in enumerate(waypoints):
+                if emergency_rtl_requested.is_set():
+                    break
+                print(f"\nFlying to WP{i + 1} …")
+                nav.fly_to(lat, lon, args.alt_m)
+                reached = nav.wait_until_reached(should_stop=emergency_rtl_requested.is_set)
+                if not reached:
+                    break
+
+        if emergency_rtl_requested.is_set():
+            print("\nEmergency RTL requested. Mission navigation stopped.")
+            manager.transition_to("rtl")
+        else:
+            print("\nMission complete. Switching to RTL …")
+            manager.transition_to("rtl")
+            client.return_to_launch()
+    except KeyboardInterrupt:
+        print("\nEmergency interrupt received. Switching to RTL …")
+        emergency_rtl_requested.set()
+        manager.transition_to("rtl")
+        client.return_to_launch()
+    finally:
+        emergency_server.stop()
 
     time.sleep(3)  # keep script alive long enough for the RTL command to be processed
     print(f"Done. Phase history: {manager.completed_phases} → {manager.current_phase}")
