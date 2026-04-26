@@ -53,6 +53,10 @@ class MavlinkClient:
         """Command the vehicle to return to its launch point."""
         self.set_mode("RTL")
 
+    def loiter(self) -> None:
+        """Command the vehicle to circle near its current position."""
+        self.set_mode("LOITER")
+
     def rc_override(self, throttle: int = 0) -> None:
         """Override RC channel 3 (throttle). Pass 0 to release all overrides."""
         with self._send_lock:

@@ -35,22 +35,43 @@ def main() -> None:
     args = parser.parse_args()
 
     size_m = args.size_m if args.size_m != 500.0 or args.side_m == 500.0 else args.side_m
-    emergency_rtl_requested = threading.Event()
+    external_command_requested = threading.Event()
+    requested_command = "RTL"
+    command_lock = threading.Lock()
 
     manager = MissionManager(mission_name=f"{args.shape}_mission")
     client = MavlinkClient(args.connection)
     nav = WaypointNavigator(client, acceptance_radius_m=args.acceptance_radius)
 
     def request_emergency_rtl() -> str:
-        emergency_rtl_requested.set()
+        nonlocal requested_command
+        with command_lock:
+            requested_command = "RTL"
+        external_command_requested.set()
         client.return_to_launch()
         return "RTL requested by running mission"
+
+    def request_loiter() -> str:
+        nonlocal requested_command
+        with command_lock:
+            requested_command = "LOITER"
+        external_command_requested.set()
+        client.loiter()
+        return "LOITER requested by running mission"
+
+    def get_requested_command() -> str:
+        with command_lock:
+            return requested_command
 
     print(f"Connecting to {args.connection} …")
     client.connect()
     print("Connected.")
 
-    emergency_server = EmergencyCommandServer(request_emergency_rtl, port=args.emergency_port)
+    emergency_server = EmergencyCommandServer(
+        request_emergency_rtl,
+        on_loiter=request_loiter,
+        port=args.emergency_port,
+    )
     try:
         emergency_server.start()
         print(f"Emergency RTL server listening on 127.0.0.1:{emergency_server.port}.")
@@ -66,40 +87,41 @@ def main() -> None:
 
         manager.transition_to("takeoff")
         print(f"Taking off to {args.alt_m:.0f} m …")
-        takeoff_complete = nav.climb_to(args.alt_m, should_stop=emergency_rtl_requested.is_set)
+        takeoff_complete = nav.climb_to(args.alt_m, should_stop=external_command_requested.is_set)
         if not takeoff_complete:
-            print("\nEmergency RTL requested during takeoff.")
+            print(f"\n{get_requested_command()} requested during takeoff.")
 
-        if takeoff_complete and not emergency_rtl_requested.is_set():
+        if takeoff_complete and not external_command_requested.is_set():
             print("Downloading home GPS position …")
             home_lat_e7, home_lon_e7, _ = client.get_position()
             waypoints = compute_mission_waypoints(args.shape, home_lat_e7, home_lon_e7, size_m)
             print(f"{args.shape.title()} waypoints (1e-7 deg): {waypoints}")
 
-        if takeoff_complete and not emergency_rtl_requested.is_set():
+        if takeoff_complete and not external_command_requested.is_set():
             print("Switching to GUIDED …")
             client.set_mode("GUIDED")
 
             manager.transition_to("navigate")
             for i, (lat, lon) in enumerate(waypoints):
-                if emergency_rtl_requested.is_set():
+                if external_command_requested.is_set():
                     break
                 print(f"\nFlying to WP{i + 1} …")
                 nav.fly_to(lat, lon, args.alt_m)
-                reached = nav.wait_until_reached(should_stop=emergency_rtl_requested.is_set)
+                reached = nav.wait_until_reached(should_stop=external_command_requested.is_set)
                 if not reached:
                     break
 
-        if emergency_rtl_requested.is_set():
-            print("\nEmergency RTL requested. Mission navigation stopped.")
-            manager.transition_to("rtl")
+        if external_command_requested.is_set():
+            command = get_requested_command()
+            print(f"\n{command} requested. Mission navigation stopped.")
+            manager.transition_to(command.lower())
         else:
             print("\nMission complete. Switching to RTL …")
             manager.transition_to("rtl")
             client.return_to_launch()
     except KeyboardInterrupt:
         print("\nEmergency interrupt received. Switching to RTL …")
-        emergency_rtl_requested.set()
+        external_command_requested.set()
         manager.transition_to("rtl")
         client.return_to_launch()
     finally:

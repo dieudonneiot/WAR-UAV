@@ -45,6 +45,7 @@ Important Python operations:
 client.set_mode("TAKEOFF")
 client.set_mode("GUIDED")
 client.set_mode("RTL")
+client.loiter()
 client.arm()
 client.reposition(lat_e7, lon_e7, alt_m)
 client.get_position()
@@ -84,6 +85,30 @@ at that output:
 
 ```powershell
 python scripts/emergency_rtl.py --direct --connection udpin:0.0.0.0:14551
+```
+
+## Loiter
+
+Use loiter when you want the aircraft to stop following the current route and
+circle near its current position:
+
+```powershell
+python scripts/loiter.py
+```
+
+Like `emergency_rtl.py`, this command first asks the running mission process to
+send `LOITER` through its existing MAVLink connection. If no mission process is
+running, it falls back to direct MAVLink:
+
+```powershell
+python scripts/loiter.py --direct
+```
+
+If you intentionally created a second MAVProxy output, point the direct command
+at that output:
+
+```powershell
+python scripts/loiter.py --direct --connection udpin:0.0.0.0:14551
 ```
 
 ## Key ArduPlane Modes
@@ -163,7 +188,7 @@ aircraft at the mission level: take off, go to a point, loiter, or return home.
 
 1. CLI mission shape selection: square, triangle, circle, line. Done.
 2. Emergency RTL command. Done.
-3. Loiter command.
+3. Loiter command. Done.
 4. Live telemetry printout.
 5. Waypoint upload using AUTO mode.
 6. Interactive keyboard control panel.
