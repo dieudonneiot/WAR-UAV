@@ -115,7 +115,7 @@ You need **two terminals open at the same time**: one in WSL2, one in Windows Po
 
 ```bash
 cd ardupilot
-sim_vehicle.py -v ArduPlane --console --map --out=tcp:0.0.0.0:5762
+sim_vehicle.py -v ArduPlane --console --map
 ```
 
 Flag breakdown:
@@ -125,17 +125,25 @@ Flag breakdown:
 | `-v ArduPlane` | Simulate a fixed-wing aircraft |
 | `--console` | Opens the MAVProxy text console |
 | `--map` | Opens the MAVProxy map window |
-| `--out=tcp:0.0.0.0:5762` | Exposes a second MAVLink stream on port 5762 so Windows can connect |
+
+`sim_vehicle.py`/MAVProxy normally exposes a UDP MAVLink stream to Windows on
+port `14550`. The Python mission listens for that stream with
+`udpin:0.0.0.0:14550`.
+
+> Do not point the Python script at `tcp:127.0.0.1:5762`. In this SITL setup,
+> `5762` is ArduPlane's raw `SERIAL1` TCP port. It accepts a TCP connection, so
+> the ArduPlane terminal prints `New connection on SERIAL1`, but it does not
+> provide the MAVLink heartbeat the mission script is waiting for.
 
 ### Step 2 — Wait until SITL is fully ready
 
 **Do not launch the Python script until you see both of these signals:**
 
-1. In the **ArduPlane console window**:
+1. In the **MAVProxy console window**:
 
    ```text
-   New connection on SERIAL1
-   Loaded defaults from Tools/autotest/models/plane.parm
+   AP: ArduPilot Ready
+   pre-arm good
    ```
 
 2. In the **MAVProxy status bar** (top of the console):
@@ -162,14 +170,12 @@ python scripts/run_square_mission.py
 The script will print its progress:
 
 ```text
-Connecting to tcp:127.0.0.1:5762 …
+Connecting to udpin:0.0.0.0:14550 …
 Connected.
 Disabling hand-launch safety (TKOFF_THR_MINACC=0) …
 Disabling pre-arm checks (ARMING_CHECK=0) …
-Switching to FBWA …
-Arming motors …
-Climbing to 50 m …
-  alt=0.0 m
+Taking off to 50 m …
+  alt=...
   ...
 ```
 
@@ -177,7 +183,7 @@ Climbing to 50 m …
 
 ```powershell
 python scripts/run_square_mission.py `
-    --connection tcp:127.0.0.1:5762 `
+    --connection udpin:0.0.0.0:14550 `
     --side-m 300 `
     --alt-m 80 `
     --acceptance-radius 50
@@ -185,7 +191,7 @@ python scripts/run_square_mission.py `
 
 | Argument | Default | Description |
 | -------- | ------- | ----------- |
-| `--connection` | `tcp:127.0.0.1:5762` | MAVLink connection string |
+| `--connection` | `udpin:0.0.0.0:14550` | MAVLink connection string |
 | `--side-m` | `500` | Square side length in metres |
 | `--alt-m` | `50` | Cruise altitude in metres AGL |
 | `--acceptance-radius` | `65` | Waypoint reached threshold in metres |

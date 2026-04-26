@@ -13,8 +13,8 @@ Tools/environment_install/install-prereqs-ubuntu.sh -y
 
 # 4. Launch ArduPlane SITL
 #    First run auto-compiles ArduPlane — takes ~10 min, subsequent runs are instant
-#    --out exposes port 5762 to Windows over localhost
-sim_vehicle.py -v ArduPlane --console --map --out=tcp:0.0.0.0:5762
+#    MAVProxy exposes UDP MAVLink to Windows on port 14550
+sim_vehicle.py -v ArduPlane --console --map
 
 Windows commands (after SITL is running)
 
@@ -30,12 +30,13 @@ python scripts/run_square_simulation.py
 SIMPLE
 
 cd ardupilot
-sim_vehicle.py -v ArduPlane --console --map --out=tcp:0.0.0.0:5762
+sim_vehicle.py -v ArduPlane --console --map
 
-Wait until you see this in the ArduPlane console before moving to Windows:
+Wait until you see this in the MAVProxy console before moving to Windows:
 
 
-New connection on SERIAL1
+AP: ArduPilot Ready
+pre-arm good
 and the MAVProxy status bar shows GPS: OK.
 
 

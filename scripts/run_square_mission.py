@@ -2,7 +2,7 @@
 
 Usage:
     python scripts/run_square_mission.py
-    python scripts/run_square_mission.py --connection tcp:127.0.0.1:5762 --side-m 500 --alt-m 50
+    python scripts/run_square_mission.py --connection udpin:0.0.0.0:14550 --side-m 500 --alt-m 50
 """
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from uav.mavlink.client import MavlinkClient
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fly a square waypoint mission via MAVLink.")
-    parser.add_argument("--connection", default="tcp:127.0.0.1:5762",
-                        help="MAVLink connection string (default: tcp:127.0.0.1:5762)")
+    parser.add_argument("--connection", default="udpin:0.0.0.0:14550",
+                        help="MAVLink connection string (default: udpin:0.0.0.0:14550)")
     parser.add_argument("--side-m", type=float, default=500.0,
                         help="Square side length in metres (default: 500)")
     parser.add_argument("--alt-m", type=float, default=50.0,
