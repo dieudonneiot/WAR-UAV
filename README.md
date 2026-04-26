@@ -158,27 +158,31 @@ port `14550`. The Python mission listens for that stream with
 > `wait_heartbeat()` will block indefinitely because the autopilot
 > has not started sending heartbeats yet.
 
-### Step 3 — Run the square waypoint mission (Windows PowerShell)
+### Step 3 — Start the Mission Control dashboard (Windows PowerShell)
 
 ```powershell
 # Make sure the venv is active
 .\.venv\Scripts\Activate.ps1
 
-# Fly the default 500 m square at 50 m AGL
-python scripts/run_square_mission.py
+# Start the dashboard — this is the only command you need from PowerShell
+python scripts/web_dashboard.py
 ```
 
-Press `Ctrl+C` in this PowerShell window at any time to command emergency RTL.
-You can also run `python scripts/emergency_rtl.py` from another PowerShell
-window; if this mission script is already using MAVLink port `14550`, the
-emergency command automatically routes through the running mission process.
-To hold position instead of returning home, run `python scripts/loiter.py` from
-another PowerShell window.
-To watch live mission telemetry, run `python scripts/telemetry.py` from another
-PowerShell window.
-For an interactive terminal control panel, run `python scripts/control_panel.py`.
-For a browser dashboard, run `python scripts/web_dashboard.py` and open
-`http://127.0.0.1:8787`.
+Then open **[http://127.0.0.1:8787](http://127.0.0.1:8787)** in your browser.
+From that point everything is done in the browser:
+
+| Browser action | What it does |
+| -------------- | ------------ |
+| **Launch → MAVLink Mission** | Configure shape, size, altitude, control mode and launch `run_square_mission.py` as a subprocess |
+| **Launch → Simulation** | Launch `run_square_simulation.py` with chosen parameters |
+| **Launch → Vision** | Launch `run_vision_pipeline.py` with chosen parameters |
+| **STOP button** | Send SIGTERM to the running script |
+| **Process Output panel** | Live streaming stdout/stderr from the subprocess, auto-scrolls |
+| **Flight Controls** | TAKEOFF, GUIDED, LOITER, RTL, or any custom mode — sent to the running mission |
+| **Telemetry** | Phase, mode, altitude, waypoint distance, lat/lon refreshed every second |
+
+> The process status badge in the header shows **idle**, **running pid=XXXX**, or
+> **exited code=N** so you always know what is happening.
 
 The script will print its progress:
 
@@ -362,7 +366,7 @@ Windows        → run_square_mission.py (mission computer)
 | `scripts/loiter.py` | Command the aircraft to loiter near its current position |
 | `scripts/telemetry.py` | Print live mission telemetry |
 | `scripts/control_panel.py` | Interactive terminal panel for status, RTL, loiter, and mode changes |
-| `scripts/web_dashboard.py` | Browser dashboard for status, TAKEOFF, GUIDED, RTL, and LOITER |
+| `scripts/web_dashboard.py` | Mission Control browser dashboard — launch scripts, stream live output, flight controls, telemetry |
 | `scripts/run_simulation_test.py` | Automated vision simulation test |
 
 ---
