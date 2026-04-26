@@ -194,6 +194,33 @@ to direct MAVLink:
 python scripts/control_panel.py --direct
 ```
 
+## Web Dashboard
+
+Use the browser dashboard when you want point-and-click controls:
+
+```powershell
+python scripts/web_dashboard.py
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8787
+```
+
+The dashboard polls mission status once per second and provides controls for:
+
+```text
+TAKEOFF
+GUIDED
+LOITER
+RTL
+MODE <custom mode>
+```
+
+It talks to the same local mission command server as the terminal tools, so the
+running mission keeps ownership of MAVLink port `14550`.
+
 ## Key ArduPlane Modes
 
 ```text
@@ -275,4 +302,4 @@ aircraft at the mission level: take off, go to a point, loiter, or return home.
 4. Live telemetry printout. Done.
 5. Waypoint upload using AUTO mode. Done.
 6. Interactive keyboard control panel. Done.
-7. Web dashboard with TAKEOFF, GUIDED, RTL, LOITER, and status controls.
+7. Web dashboard with TAKEOFF, GUIDED, RTL, LOITER, and status controls. Done.

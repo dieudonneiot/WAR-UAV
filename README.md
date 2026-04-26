@@ -177,6 +177,8 @@ another PowerShell window.
 To watch live mission telemetry, run `python scripts/telemetry.py` from another
 PowerShell window.
 For an interactive terminal control panel, run `python scripts/control_panel.py`.
+For a browser dashboard, run `python scripts/web_dashboard.py` and open
+`http://127.0.0.1:8787`.
 
 The script will print its progress:
 
@@ -360,6 +362,7 @@ Windows        → run_square_mission.py (mission computer)
 | `scripts/loiter.py` | Command the aircraft to loiter near its current position |
 | `scripts/telemetry.py` | Print live mission telemetry |
 | `scripts/control_panel.py` | Interactive terminal panel for status, RTL, loiter, and mode changes |
+| `scripts/web_dashboard.py` | Browser dashboard for status, TAKEOFF, GUIDED, RTL, and LOITER |
 | `scripts/run_simulation_test.py` | Automated vision simulation test |
 
 ---
