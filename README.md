@@ -194,6 +194,7 @@ Taking off to 50 m …
 ```powershell
 python scripts/run_square_mission.py `
     --connection udpin:0.0.0.0:14550 `
+    --control-mode guided `
     --shape triangle `
     --size-m 300 `
     --alt-m 80 `
@@ -203,11 +204,19 @@ python scripts/run_square_mission.py `
 | Argument | Default | Description |
 | -------- | ------- | ----------- |
 | `--connection` | `udpin:0.0.0.0:14550` | MAVLink connection string |
+| `--control-mode` | `guided` | `guided` sends live reposition commands; `auto` uploads a mission and switches to AUTO |
 | `--shape` | `square` | Mission shape: `square`, `triangle`, `line`, or `circle` |
 | `--size-m` | `500` | Mission size in metres; circle uses this as diameter |
 | `--side-m` | `500` | Deprecated alias for `--size-m` |
 | `--alt-m` | `50` | Cruise altitude in metres AGL |
 | `--acceptance-radius` | `65` | Waypoint reached threshold in metres |
+| `--auto-monitor-s` | `300` | Seconds to monitor uploaded AUTO missions; `0` means forever |
+
+To let ArduPlane fly the uploaded mission internally:
+
+```powershell
+python scripts/run_square_mission.py --control-mode auto --shape square --size-m 500 --alt-m 50
+```
 
 ---
 

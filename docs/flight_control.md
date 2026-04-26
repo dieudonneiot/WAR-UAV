@@ -132,6 +132,38 @@ python scripts/telemetry.py --count 10
 python scripts/telemetry.py --direct
 ```
 
+## AUTO Mission Upload
+
+`GUIDED` mode sends one live reposition command per waypoint from the Python
+mission loop. `AUTO` mode works differently: Python uploads the full mission to
+ArduPlane, switches the aircraft to `AUTO`, arms it, and ArduPlane executes the
+mission internally.
+
+Use AUTO mode like this:
+
+```powershell
+python scripts/run_square_mission.py --control-mode auto --shape square --size-m 500 --alt-m 50
+```
+
+The uploaded mission contains:
+
+```text
+NAV_TAKEOFF
+NAV_WAYPOINT for each generated shape waypoint
+NAV_RETURN_TO_LAUNCH
+```
+
+Useful AUTO options:
+
+```powershell
+python scripts/run_square_mission.py --control-mode auto --shape circle --size-m 600
+python scripts/run_square_mission.py --control-mode auto --auto-monitor-s 0
+```
+
+The local RTL, LOITER, and telemetry scripts keep working while AUTO mode is
+running because they talk to the mission process instead of trying to bind to
+MAVLink port `14550`.
+
 ## Key ArduPlane Modes
 
 ```text
@@ -211,6 +243,6 @@ aircraft at the mission level: take off, go to a point, loiter, or return home.
 2. Emergency RTL command. Done.
 3. Loiter command. Done.
 4. Live telemetry printout. Done.
-5. Waypoint upload using AUTO mode.
+5. Waypoint upload using AUTO mode. Done.
 6. Interactive keyboard control panel.
 7. Web dashboard with TAKEOFF, GUIDED, RTL, LOITER, and status controls.

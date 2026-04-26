@@ -23,6 +23,8 @@ def main() -> None:
                         help="MAVLink connection string (default: udpin:0.0.0.0:14550)")
     parser.add_argument("--shape", choices=["square", "triangle", "line", "circle"], default="square",
                         help="Mission shape to fly (default: square)")
+    parser.add_argument("--control-mode", choices=["guided", "auto"], default="guided",
+                        help="Fly by GUIDED reposition commands or uploaded AUTO mission.")
     parser.add_argument("--size-m", type=float, default=500.0,
                         help="Mission size in metres; circle uses this as diameter (default: 500)")
     parser.add_argument("--side-m", type=float, default=500.0,
@@ -33,6 +35,8 @@ def main() -> None:
                         help="Waypoint acceptance radius in metres (default: 65)")
     parser.add_argument("--emergency-port", type=int, default=DEFAULT_EMERGENCY_PORT,
                         help=f"Local emergency command port (default: {DEFAULT_EMERGENCY_PORT})")
+    parser.add_argument("--auto-monitor-s", type=float, default=300.0,
+                        help="Seconds to monitor AUTO missions; 0 means forever (default: 300).")
     args = parser.parse_args()
 
     size_m = args.size_m if args.size_m != 500.0 or args.side_m == 500.0 else args.side_m
@@ -94,51 +98,90 @@ def main() -> None:
         client.disable_arming_checks()
         time.sleep(1)
 
-        transition_to("takeoff")
-        print(f"Taking off to {args.alt_m:.0f} m …")
-        telemetry.update_mode("TAKEOFF")
-        takeoff_complete = nav.climb_to(
-            args.alt_m,
-            should_stop=external_command_requested.is_set,
-            on_position=telemetry.update_position,
-        )
-        if not takeoff_complete:
-            print(f"\n{get_requested_command()} requested during takeoff.")
-
-        if takeoff_complete and not external_command_requested.is_set():
+        if args.control_mode == "auto":
             print("Downloading home GPS position …")
             home_lat_e7, home_lon_e7, home_alt_m = client.get_position()
             telemetry.update_position(home_lat_e7, home_lon_e7, home_alt_m)
             waypoints = compute_mission_waypoints(args.shape, home_lat_e7, home_lon_e7, size_m)
             print(f"{args.shape.title()} waypoints (1e-7 deg): {waypoints}")
 
-        if takeoff_complete and not external_command_requested.is_set():
-            print("Switching to GUIDED …")
-            telemetry.update_mode("GUIDED")
-            client.set_mode("GUIDED")
+            print("Uploading AUTO mission …")
+            item_count = client.upload_auto_mission(
+                home_lat_e7,
+                home_lon_e7,
+                waypoints,
+                args.alt_m,
+                acceptance_radius_m=args.acceptance_radius,
+            )
+            print(f"Uploaded {item_count} mission items.")
 
-            transition_to("navigate")
-            for i, (lat, lon) in enumerate(waypoints):
-                if external_command_requested.is_set():
+            transition_to("auto")
+            telemetry.update_mode("AUTO")
+            print("Switching to AUTO and arming …")
+            client.set_mode("AUTO")
+            client.arm()
+
+            print("Monitoring AUTO mission …")
+            auto_start_s = time.monotonic()
+            while not external_command_requested.is_set():
+                lat_e7, lon_e7, alt_m = client.get_position()
+                telemetry.update_position(lat_e7, lon_e7, alt_m)
+                dist = client.get_nav_status(timeout=0.2)
+                telemetry.update_wp_dist(dist)
+                if dist is not None:
+                    print(f"  alt={alt_m:.1f} m wp_dist={dist:.0f} m")
+                if args.auto_monitor_s > 0 and time.monotonic() - auto_start_s >= args.auto_monitor_s:
+                    print("AUTO monitor time elapsed; leaving uploaded mission active.")
                     break
-                print(f"\nFlying to WP{i + 1} …")
-                nav.fly_to(lat, lon, args.alt_m)
-                reached = nav.wait_until_reached(
-                    should_stop=external_command_requested.is_set,
-                    on_nav_status=telemetry.update_wp_dist,
-                )
-                if not reached:
-                    break
+        else:
+            transition_to("takeoff")
+            print(f"Taking off to {args.alt_m:.0f} m …")
+            telemetry.update_mode("TAKEOFF")
+            takeoff_complete = nav.climb_to(
+                args.alt_m,
+                should_stop=external_command_requested.is_set,
+                on_position=telemetry.update_position,
+            )
+            if not takeoff_complete:
+                print(f"\n{get_requested_command()} requested during takeoff.")
+
+            if takeoff_complete and not external_command_requested.is_set():
+                print("Downloading home GPS position …")
+                home_lat_e7, home_lon_e7, home_alt_m = client.get_position()
+                telemetry.update_position(home_lat_e7, home_lon_e7, home_alt_m)
+                waypoints = compute_mission_waypoints(args.shape, home_lat_e7, home_lon_e7, size_m)
+                print(f"{args.shape.title()} waypoints (1e-7 deg): {waypoints}")
+
+            if takeoff_complete and not external_command_requested.is_set():
+                print("Switching to GUIDED …")
+                telemetry.update_mode("GUIDED")
+                client.set_mode("GUIDED")
+
+                transition_to("navigate")
+                for i, (lat, lon) in enumerate(waypoints):
+                    if external_command_requested.is_set():
+                        break
+                    print(f"\nFlying to WP{i + 1} …")
+                    nav.fly_to(lat, lon, args.alt_m)
+                    reached = nav.wait_until_reached(
+                        should_stop=external_command_requested.is_set,
+                        on_nav_status=telemetry.update_wp_dist,
+                    )
+                    if not reached:
+                        break
+
+            if not external_command_requested.is_set():
+                print("\nMission complete. Switching to RTL …")
+                transition_to("rtl")
+                telemetry.update_mode("RTL")
+                client.return_to_launch()
 
         if external_command_requested.is_set():
             command = get_requested_command()
             print(f"\n{command} requested. Mission navigation stopped.")
             transition_to(command.lower())
-        else:
-            print("\nMission complete. Switching to RTL …")
-            transition_to("rtl")
-            telemetry.update_mode("RTL")
-            client.return_to_launch()
+        elif args.control_mode == "auto":
+            transition_to("auto_complete")
     except KeyboardInterrupt:
         print("\nEmergency interrupt received. Switching to RTL …")
         external_command_requested.set()
