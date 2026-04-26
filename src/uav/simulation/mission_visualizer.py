@@ -93,7 +93,9 @@ class MissionVisualizer:
         x, y, w, h = rect
         vx, vy, vw, vh = x + 12, y + 40, w - 24, h - 52
         bounds = self._map_bounds(step)
-        s2s = lambda wx, wy: self._world_to_screen(wx, wy, vx, vy, vw, vh, bounds)
+
+        def s2s(wx: float, wy: float) -> tuple[int, int]:
+            return self._world_to_screen(wx, wy, vx, vy, vw, vh, bounds)
 
         # Background
         cv2.rectangle(canvas, (vx, vy), (vx + vw, vy + vh), (52, 64, 52), -1)

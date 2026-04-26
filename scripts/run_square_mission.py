@@ -40,16 +40,8 @@ def main() -> None:
     client.disable_arming_checks()
     time.sleep(1)
 
-    print("Switching to FBWA …")
-    client.set_mode("FBWA")
-    time.sleep(1)
-
-    print("Arming motors …")
-    client.arm()
-    time.sleep(1)
-
     manager.transition_to("takeoff")
-    print(f"Climbing to {args.alt_m:.0f} m …")
+    print(f"Taking off to {args.alt_m:.0f} m …")
     nav.climb_to(args.alt_m)
 
     print("Downloading home GPS position …")

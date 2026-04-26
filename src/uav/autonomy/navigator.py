@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from uav.mavlink.client import MavlinkClient
 
 # 1 degree latitude ≈ 111 320 m; longitude varies with cos(lat) but we accept
@@ -51,13 +53,21 @@ class WaypointNavigator:
                     print("  Waypoint reached.")
                     break
 
-    def climb_to(self, target_alt_m: float, throttle: int = 1800) -> None:
-        """Apply RC throttle override until relative altitude reaches *target_alt_m*."""
+    def climb_to(self, target_alt_m: float, timeout_s: float = 120.0) -> None:
+        """Use ArduPlane TAKEOFF mode until relative altitude reaches *target_alt_m*."""
+        self.client.set_mode("TAKEOFF")
+        time.sleep(1)
+        self.client.arm()
+
+        deadline = time.monotonic() + timeout_s
         while True:
-            self.client.rc_override(throttle)
             _, _, alt = self.client.get_position()
             print(f"  alt={alt:.1f} m")
             if alt >= target_alt_m:
                 print(f"  Reached {alt:.1f} m.")
-                self.client.rc_override(0)
                 break
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"TAKEOFF did not reach {target_alt_m:.1f} m within {timeout_s:.0f}s "
+                    f"(last altitude {alt:.1f} m)."
+                )

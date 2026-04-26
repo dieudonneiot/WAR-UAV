@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from pymavlink import mavutil
 
 
@@ -10,10 +12,15 @@ class MavlinkClient:
         self.master = None
         self._modes: dict[str, int] = {}
 
-    def connect(self) -> None:
+    def connect(self, timeout_s: float = 30.0) -> None:
         self.master = mavutil.mavlink_connection(self.connection_string, baud=self.baudrate)
-        self.master.wait_heartbeat()
-        self._modes = self.master.mode_mapping()
+        heartbeat = self.master.wait_heartbeat(timeout=timeout_s)
+        if heartbeat is None:
+            raise TimeoutError(
+                f"No MAVLink heartbeat received from {self.connection_string} "
+                f"within {timeout_s:.0f}s. Wait until SITL reports GPS OK, then retry."
+            )
+        self._modes = self._wait_for_mode_mapping(timeout_s=timeout_s)
 
     # --- vehicle control ---
 
@@ -25,6 +32,13 @@ class MavlinkClient:
         )
 
     def set_mode(self, mode_name: str) -> None:
+        mode_name = mode_name.upper()
+        if mode_name not in self._modes:
+            self._modes = self._wait_for_mode_mapping(timeout_s=5.0)
+        if mode_name not in self._modes:
+            available = ", ".join(sorted(self._modes)) or "none"
+            raise ValueError(f"Mode {mode_name!r} is not available. Known modes: {available}")
+
         self.master.mav.set_mode_send(
             self.master.target_system,
             mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
@@ -75,3 +89,11 @@ class MavlinkClient:
         msg = self.master.recv_match(type='NAV_CONTROLLER_OUTPUT', blocking=True, timeout=timeout)
         return float(msg.wp_dist) if msg else None
 
+    def _wait_for_mode_mapping(self, timeout_s: float) -> dict[str, int]:
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            modes = self.master.mode_mapping() or {}
+            if modes:
+                return {name.upper(): number for name, number in modes.items()}
+            time.sleep(0.25)
+        return {}
