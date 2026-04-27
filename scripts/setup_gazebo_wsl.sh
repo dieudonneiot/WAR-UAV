@@ -29,7 +29,10 @@ sudo apt-get install -y --no-install-recommends \
   git curl wget lsb-release gnupg ca-certificates \
   python3-pip python3-dev \
   cmake build-essential ninja-build \
-  rapidjson-dev
+  rapidjson-dev \
+  libopencv-dev \
+  libgstreamer1.0-dev \
+  libgstreamer-plugins-base1.0-dev
 
 # ── 2. Gazebo Harmonic ────────────────────────────────────────────────────────
 if ! command -v gz &>/dev/null; then

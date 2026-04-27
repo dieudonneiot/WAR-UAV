@@ -34,8 +34,23 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Environment ───────────────────────────────────────────────────────────────
-export GZ_SIM_RESOURCE_PATH="$GZ_SIM_RESOURCE_PATH:$ARDUPILOT_GAZEBO_DIR/models:$ARDUPILOT_GAZEBO_DIR/worlds:$TEKNOFEST_DIR/config/gazebo"
+# Base resource path: source clone + TEKNOFEST world/config
+_GZ_EXTRA="$ARDUPILOT_GAZEBO_DIR/models:$ARDUPILOT_GAZEBO_DIR/worlds:$TEKNOFEST_DIR/config/gazebo"
+
+# Also add system install paths that `sudo ninja install` may have created
+for _dir in \
+    "/usr/local/share/ardupilot_gazebo" \
+    "/usr/share/ardupilot_gazebo" \
+    "/usr/local/share/gz/gz-sim8" \
+    "/usr/share/gz/gz-sim8"; do
+  [[ -d "$_dir" ]] && _GZ_EXTRA="$_GZ_EXTRA:$_dir"
+done
+
+export GZ_SIM_RESOURCE_PATH="${GZ_SIM_RESOURCE_PATH:-}:$_GZ_EXTRA"
+export GZ_SIM_SYSTEM_PLUGIN_PATH="${GZ_SIM_SYSTEM_PLUGIN_PATH:-}:/usr/local/lib/gz-sim-8/plugins:/usr/lib/gz-sim-8/plugins"
 export PATH="$PATH:$ARDUPILOT_DIR/Tools/autotest"
+
+echo "[sitl] GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH"
 
 # ── Windows host IP (for UDP back to Windows Python) ─────────────────────────
 WINDOWS_IP=$(ip route show default 2>/dev/null | awk '{print $3; exit}')
@@ -83,7 +98,7 @@ cd "$ARDUPILOT_DIR"
 sim_vehicle.py \
   -v ArduPlane \
   --model=gazebo-zephyr \
-  -f zephyr_delta_wing \
+  -f zephyr \
   --no-rebuild \
   --no-mavproxy \
   -l "$SITL_HOME" \

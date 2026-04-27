@@ -433,22 +433,24 @@ bash scripts/setup_gazebo_wsl.sh
 
 > The ArduPilot first-build step takes about 10 minutes.  Subsequent launches are instant.
 
-### Each session — two terminals
+### Each session — dashboard workflow (recommended)
 
-**Terminal 1 — WSL2:**
+1. **WSL2 terminal** — start Gazebo + SITL (one command, keep the window open):
 
-```bash
-bash scripts/sitl_launch.sh
-```
+   ```bash
+   bash scripts/sitl_launch.sh
+   ```
 
-This starts Gazebo (the 3-D window opens) and ArduPlane SITL side by side.  Wait until
-you see `SITL + Gazebo running` in the output before moving to Terminal 2.
+   Wait until you see `SITL + Gazebo running`.
 
-**Terminal 2 — Windows PowerShell:**
+2. **Dashboard → Gazebo SITL tab → Step 2 → LAUNCH MISSION**
+   The Python mission script connects automatically, arms the plane, uploads the
+   waypoint route, monitors for zone activation and replans around it.
 
-```powershell
-python scripts/run_gazebo_air_defense.py
-```
+> **No WSL terminal at all?**  Use the **Step 1 → LAUNCH SITL** button in the
+> Gazebo SITL tab — the dashboard launches `scripts/sitl_launch.sh` via WSL2
+> and streams its output to the Process Output panel.  Click **LAUNCH MISSION**
+> once you see `SITL + Gazebo running` in the log.
 
 ### What you see in Gazebo
 
@@ -475,9 +477,9 @@ python scripts/run_gazebo_air_defense.py
 | `--headless-gz` | *(flag)* | Run Gazebo headless (no GUI) with `--auto-launch` |
 | `--wsl-distro` | `""` | WSL2 distro name if you have multiple distros |
 
-**Dashboard:** open the **Gazebo SITL** tab, configure parameters, and click
-**LAUNCH MISSION**.  The setup guide and `sitl_launch.sh` instructions are also
-printed inline in that tab.
+**Dashboard:** open the **Gazebo SITL** tab.  The tab has two clearly labelled steps:
+**Step 1** starts SITL + Gazebo (with its own status badge), **Step 2** launches the
+mission.  Both processes run independently — stopping the mission does not stop SITL.
 
 ---
 
@@ -501,6 +503,7 @@ printed inline in that tab.
 | `scripts/run_gazebo_air_defense.py` | Live Gazebo + ArduPlane SITL air defense mission (Tier 4) |
 | `scripts/setup_gazebo_wsl.sh` | One-time WSL2 install: Gazebo Harmonic + ardupilot_gazebo + ArduPilot SITL |
 | `scripts/sitl_launch.sh` | Per-session launcher: starts Gazebo world then ArduPlane SITL in WSL2 |
+| `scripts/run_sitl_wsl.py` | Dashboard helper: runs `sitl_launch.sh` via WSL2 and streams output (Step 1 button) |
 
 ---
 
@@ -516,7 +519,13 @@ TEKNOFEST2026/
 ├── docs/
 │   └── simulation.md              # Extended simulation workflow notes
 ├── models/                        # YOLO model weights (.pt files)
-├── scripts/                       # Launcher and validation scripts
+├── scripts/
+│   ├── run_gazebo_air_defense.py  # Tier 4 mission: connect, arm, replan, Gazebo viz
+│   ├── run_sitl_wsl.py            # Dashboard Step-1 helper: sitl_launch.sh via WSL2
+│   ├── run_gazebo_setup.py        # Dashboard RUN SETUP helper: setup_gazebo_wsl.sh via WSL2
+│   ├── setup_gazebo_wsl.sh        # One-time WSL2 install script
+│   ├── sitl_launch.sh             # Per-session SITL + Gazebo launcher
+│   └── …                         # (other scripts listed in Script Reference)
 ├── src/uav/
 │   ├── autonomy/                  # Mission phases, engagement, navigation
 │   │   ├── air_defense.py         # RestrictedZone, BypassPlanner, RouteChecker, astar_grid
@@ -531,7 +540,7 @@ TEKNOFEST2026/
 │   │   ├── air_defense_simulation.py  # Kinematic air defense sim with phase tracking
 │   │   ├── gazebo_zone_visualizer.py  # Spawn/remove zone cylinders in a live Gazebo world
 │   │   ├── mission_scenario.py        # Waypoint mission physics simulation
-│   │   ├── sitl_bridge.py             # Manage ArduPlane SITL + Gazebo in WSL2
+│   │   ├── sitl_bridge.py             # Manage ArduPlane SITL + Gazebo in WSL2 (--auto-launch)
 │   │   ├── vision_scenario.py         # Synthetic detection scenarios
 │   │   └── visualizer.py             # Dashboard rendering
 │   └── vision/

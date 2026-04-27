@@ -36,16 +36,24 @@ ALLOWED_SCRIPTS: frozenset[str] = frozenset({
     "generate_air_defense_figures.py",
     "run_gazebo_air_defense.py",
     "run_gazebo_setup.py",
+    "run_sitl_wsl.py",
 })
 
 
 class ProcessManager:
     """Manages a single child process: launch, capture output, stop."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        shared_logs: collections.deque | None = None,
+        log_prefix: str = "",
+    ) -> None:
         self._proc: subprocess.Popen[str] | None = None
         self._lock = threading.Lock()
-        self._logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=500)
+        self._prefix = log_prefix
+        self._logs: collections.deque[dict[str, Any]] = (
+            shared_logs if shared_logs is not None else collections.deque(maxlen=1000)
+        )
 
     def launch(self, script: str, extra_args: list[str]) -> dict[str, Any]:
         if script not in ALLOWED_SCRIPTS:
@@ -96,7 +104,7 @@ class ProcessManager:
             return [e for e in self._logs if e["ts"] > since]
 
     def _add_log(self, line: str) -> None:
-        self._logs.append({"ts": time.time(), "line": line})
+        self._logs.append({"ts": time.time(), "line": self._prefix + line})
 
     def _read_output(self, proc: subprocess.Popen[str]) -> None:
         try:
@@ -206,6 +214,10 @@ DASHBOARD_HTML = """<!doctype html>
   <div id="proc-badge" class="badge proc-badge">
     <span class="dot" id="proc-dot"></span>
     <span id="proc-text">idle</span>
+  </div>
+  <div id="hdr-sitl-badge" class="badge proc-badge" style="display:none;">
+    <span class="dot on" id="hdr-sitl-dot"></span>
+    <span id="hdr-sitl-text">SITL idle</span>
   </div>
   <div class="badge">
     <span class="dot" id="conn-dot"></span>
@@ -400,55 +412,76 @@ DASHBOARD_HTML = """<!doctype html>
 
     <!-- Gazebo SITL -->
     <div class="tab-content" id="tab-gazebo">
-      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">
-        Requires WSL2 + Gazebo Harmonic + ArduPilot SITL.
-        Run <code>bash scripts/sitl_launch.sh</code> in WSL2 first, or enable Auto-Launch below.
-      </p>
-      <div class="fields">
-        <div class="field field-wide">
-          <label>MAVLink Connection</label>
-          <input type="text" id="gz-conn" value="udpin:0.0.0.0:14550">
+
+      <!-- ── Step 1: Start SITL ──────────────────────────────────────────── -->
+      <div style="border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span class="sec-title" style="margin:0;">Step 1 — SITL + Gazebo</span>
+          <div id="sitl-badge" class="badge proc-badge" style="font-size:11px;">
+            <span class="dot off" id="sitl-dot"></span>
+            <span id="sitl-text">idle</span>
+          </div>
         </div>
-        <div class="field">
-          <label>Side (m)</label>
-          <input type="number" id="gz-side" value="500" min="100" max="5000">
+        <p style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+          Click <strong>LAUNCH SITL</strong> to start Gazebo + ArduPlane in WSL2, or run
+          <code>bash scripts/sitl_launch.sh</code> manually in a WSL terminal.
+        </p>
+        <div class="fields" style="margin-bottom:8px;">
+          <div class="field">
+            <label>WSL Distro (optional)</label>
+            <input type="text" id="gz-distro" value="" placeholder="leave blank for default">
+          </div>
+          <div class="field" style="display:flex;align-items:flex-end;padding-bottom:4px;">
+            <label class="check-row" style="margin:0;">
+              <input type="checkbox" id="gz-headlessgz"> Headless (no GUI window)
+            </label>
+          </div>
         </div>
-        <div class="field">
-          <label>Alt (m)</label>
-          <input type="number" id="gz-alt" value="50" min="10" max="500">
-        </div>
-        <div class="field">
-          <label>Zone Radius (m)</label>
-          <input type="number" id="gz-radius" value="100" min="20" max="1000">
-        </div>
-        <div class="field">
-          <label>Safety Buffer (m)</label>
-          <input type="number" id="gz-buffer" value="75" min="10" max="500">
-        </div>
-        <div class="field">
-          <label>Zone Activates (s)</label>
-          <input type="number" id="gz-activate" value="30" min="5" max="300">
-        </div>
-        <div class="field">
-          <label>WSL Distro (optional)</label>
-          <input type="text" id="gz-distro" value="" placeholder="leave blank for default">
+        <div style="display:flex;gap:8px;">
+          <button class="btn-g" id="btn-launch-sitl" style="flex:1;">LAUNCH SITL</button>
+          <button class="btn-r" id="btn-stop-sitl" style="flex:0 0 90px;">STOP SITL</button>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
-        <label class="check-row">
-          <input type="checkbox" id="gz-autolaunched"> Auto-launch SITL+Gazebo via WSL2
-        </label>
-        <label class="check-row">
-          <input type="checkbox" id="gz-headlessgz"> Headless Gazebo (no GUI)
-        </label>
-        <label class="check-row">
+
+      <!-- ── Step 2: Launch Mission ──────────────────────────────────────── -->
+      <div>
+        <p class="sec-title" style="margin-bottom:8px;">Step 2 — Air Defense Mission</p>
+        <div class="fields">
+          <div class="field field-wide">
+            <label>MAVLink Connection</label>
+            <input type="text" id="gz-conn" value="udpin:0.0.0.0:14550">
+          </div>
+          <div class="field">
+            <label>Side (m)</label>
+            <input type="number" id="gz-side" value="500" min="100" max="5000">
+          </div>
+          <div class="field">
+            <label>Alt (m)</label>
+            <input type="number" id="gz-alt" value="50" min="10" max="500">
+          </div>
+          <div class="field">
+            <label>Zone Radius (m)</label>
+            <input type="number" id="gz-radius" value="100" min="20" max="1000">
+          </div>
+          <div class="field">
+            <label>Safety Buffer (m)</label>
+            <input type="number" id="gz-buffer" value="75" min="10" max="500">
+          </div>
+          <div class="field">
+            <label>Zone Activates (s)</label>
+            <input type="number" id="gz-activate" value="30" min="5" max="300">
+          </div>
+        </div>
+        <label class="check-row" style="margin-bottom:4px;">
           <input type="checkbox" id="gz-noviz"> Skip Gazebo zone visualisation
         </label>
+        <div class="launch-actions" style="margin-top:8px;">
+          <button class="btn-b" id="launch-gazebo" style="flex:1">LAUNCH MISSION</button>
+          <button class="btn-r stop-btn" style="flex:0 0 76px">STOP</button>
+        </div>
       </div>
-      <div class="launch-actions" style="margin-top:10px;">
-        <button class="btn-g" id="launch-gazebo" style="flex:1">LAUNCH MISSION</button>
-        <button class="btn-r stop-btn" style="flex:0 0 76px">STOP</button>
-      </div>
+
+      <!-- ── First-time setup ────────────────────────────────────────────── -->
       <div style="margin-top:10px;padding:10px;background:#1a2030;border-radius:6px;font-size:11px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <strong style="color:#8ab4f8;">First time? One-time WSL2 setup (~15 min)</strong>
@@ -458,8 +491,8 @@ DASHBOARD_HTML = """<!doctype html>
             RUN SETUP
           </button>
         </div>
-        <code style="color:#80cbc4;">bash scripts/setup_gazebo_wsl.sh</code> — installs Gazebo + ardupilot_gazebo + ArduPilot SITL<br>
-        <code style="color:#80cbc4;">bash scripts/sitl_launch.sh</code> — start SITL + Gazebo each session
+        <code style="color:#80cbc4;">bash scripts/setup_gazebo_wsl.sh</code> — installs Gazebo Harmonic + ardupilot_gazebo + ArduPilot SITL<br>
+        <code style="color:#80cbc4;">bash scripts/sitl_launch.sh</code> — alternative manual start
       </div>
     </div>
   </section>
@@ -670,11 +703,76 @@ DASHBOARD_HTML = """<!doctype html>
     ];
     const distro = document.getElementById("gz-distro").value.trim();
     if (distro) args.push("--wsl-distro", distro);
-    if (document.getElementById("gz-autolaunched").checked) args.push("--auto-launch");
-    if (document.getElementById("gz-headlessgz").checked)   args.push("--headless-gz");
-    if (document.getElementById("gz-noviz").checked)        args.push("--no-viz");
+    if (document.getElementById("gz-noviz").checked) args.push("--no-viz");
     launch("run_gazebo_air_defense.py", args, this);
   });
+
+  // ── SITL process (independent of the main mission process) ──────────────
+  async function launchSitl(script, args, btn) {
+    const origLabel = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = "Launching…"; }
+    addEvt("→ [SITL] " + script);
+    try {
+      const d = await (await fetch("/api/sitl/launch", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({script, args})
+      })).json();
+      addEvt(d.ok ? "✓ [SITL] Started." : "✗ [SITL] Failed: " + d.error);
+    } catch(e) { addEvt("✗ [SITL] " + String(e)); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = origLabel; } }
+  }
+
+  async function stopSitl() {
+    try {
+      const d = await (await fetch("/api/sitl/stop", {method: "POST"})).json();
+      addEvt(d.ok ? "[SITL] Stop signal sent." : "[SITL] Stop failed: " + d.error);
+    } catch(e) { addEvt(String(e)); }
+  }
+
+  const sitlBadge    = document.getElementById("sitl-badge");
+  const sitlDot      = document.getElementById("sitl-dot");
+  const sitlText     = document.getElementById("sitl-text");
+  const hdrSitlBadge = document.getElementById("hdr-sitl-badge");
+  const hdrSitlText  = document.getElementById("hdr-sitl-text");
+
+  function setSitlStatus(s) {
+    if (s.running) {
+      sitlBadge.className      = "badge proc-badge running";
+      sitlDot.className        = "dot on";
+      sitlText.textContent     = "SITL running  pid=" + s.pid;
+      hdrSitlBadge.style.display = "";
+      hdrSitlBadge.className   = "badge proc-badge running";
+      hdrSitlText.textContent  = "SITL  pid=" + s.pid;
+    } else {
+      sitlBadge.className      = "badge proc-badge";
+      sitlDot.className        = "dot off";
+      sitlText.textContent     = s.returncode === null ? "SITL idle" : "SITL exited  code=" + s.returncode;
+      hdrSitlBadge.style.display = s.returncode !== null ? "" : "none";
+      hdrSitlBadge.className   = "badge proc-badge";
+      hdrSitlText.textContent  = s.returncode !== null ? "SITL exited  " + s.returncode : "";
+    }
+  }
+
+  async function refreshSitlStatus() {
+    try {
+      const d = await (await fetch("/api/sitl/status")).json();
+      setSitlStatus(d);
+    } catch {}
+  }
+
+  document.getElementById("btn-launch-sitl").addEventListener("click", function() {
+    const args = [];
+    const distro = document.getElementById("gz-distro").value.trim();
+    if (distro) args.push("--distro", distro);
+    if (document.getElementById("gz-headlessgz").checked) args.push("--headless");
+    launchSitl("run_sitl_wsl.py", args, this);
+  });
+
+  document.getElementById("btn-stop-sitl").addEventListener("click", stopSitl);
+
+  setInterval(refreshSitlStatus, 1000);
+  refreshSitlStatus();
 
   // Gazebo one-time WSL2 setup button — spawns wsl bash directly
   document.getElementById("btn-gz-setup").addEventListener("click", function() {
@@ -747,8 +845,10 @@ def main() -> None:
                         help=f"Running mission command port (default: {DEFAULT_EMERGENCY_PORT})")
     args = parser.parse_args()
 
-    proc_mgr = ProcessManager()
-    handler = make_handler(args.command_host, args.command_port, proc_mgr)
+    shared_logs: collections.deque = collections.deque(maxlen=1000)
+    proc_mgr = ProcessManager(shared_logs, log_prefix="")
+    sitl_mgr = ProcessManager(shared_logs, log_prefix="[SITL] ")
+    handler = make_handler(args.command_host, args.command_port, proc_mgr, sitl_mgr)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"Mission Control dashboard -> http://{args.host}:{args.port}")
     try:
@@ -760,7 +860,8 @@ def main() -> None:
 
 
 def make_handler(
-    command_host: str, command_port: int, proc_mgr: ProcessManager
+    command_host: str, command_port: int,
+    proc_mgr: ProcessManager, sitl_mgr: ProcessManager,
 ) -> type[BaseHTTPRequestHandler]:
     class DashboardHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -779,6 +880,8 @@ def make_handler(
                 self._send_json({"ok": True, "entries": proc_mgr.logs_since(since)})
             elif self.path == "/api/process/status":
                 self._send_json({"ok": True, **proc_mgr.status()})
+            elif self.path == "/api/sitl/status":
+                self._send_json({"ok": True, **sitl_mgr.status()})
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -812,6 +915,18 @@ def make_handler(
 
             elif self.path == "/api/process/stop":
                 self._send_json(proc_mgr.stop())
+
+            elif self.path == "/api/sitl/launch":
+                payload = self._read_json()
+                script = str(payload.get("script", ""))
+                raw_args = payload.get("args", [])
+                if not isinstance(raw_args, list):
+                    self._send_json({"ok": False, "error": "args must be a list"}, HTTPStatus.BAD_REQUEST)
+                    return
+                self._send_json(sitl_mgr.launch(script, [str(a) for a in raw_args]))
+
+            elif self.path == "/api/sitl/stop":
+                self._send_json(sitl_mgr.stop())
 
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
