@@ -35,6 +35,7 @@ ALLOWED_SCRIPTS: frozenset[str] = frozenset({
     "run_air_defense_simulation.py",
     "generate_air_defense_figures.py",
     "run_gazebo_air_defense.py",
+    "run_gazebo_setup.py",
 })
 
 
@@ -51,7 +52,14 @@ class ProcessManager:
             return {"ok": False, "error": f"Unknown script: {script!r}"}
         with self._lock:
             if self._proc is not None and self._proc.poll() is None:
-                return {"ok": False, "error": "A process is already running — stop it first."}
+                self._add_log("[dashboard] Auto-stopping running process…")
+                self._proc.terminate()
+                try:
+                    self._proc.wait(timeout=3.0)
+                except subprocess.TimeoutExpired:
+                    self._proc.kill()
+                    self._proc.wait(timeout=2.0)
+                self._add_log("[dashboard] Previous process stopped.")
             cmd = [sys.executable, "-u", str(SCRIPTS_DIR / script)] + extra_args
             try:
                 proc = subprocess.Popen(
@@ -441,10 +449,17 @@ DASHBOARD_HTML = """<!doctype html>
         <button class="btn-g" id="launch-gazebo" style="flex:1">LAUNCH MISSION</button>
         <button class="btn-r stop-btn" style="flex:0 0 76px">STOP</button>
       </div>
-      <div style="margin-top:10px;padding:10px;background:#1a2030;border-radius:6px;font-size:11px;color:var(--muted);">
-        <strong style="color:#8ab4f8;">First time?</strong> Open a WSL2 terminal and run:<br>
-        <code style="color:#80cbc4;">bash scripts/setup_gazebo_wsl.sh</code>  — one-time install<br>
-        <code style="color:#80cbc4;">bash scripts/sitl_launch.sh</code>  — start SITL + Gazebo each session
+      <div style="margin-top:10px;padding:10px;background:#1a2030;border-radius:6px;font-size:11px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <strong style="color:#8ab4f8;">First time? One-time WSL2 setup (~15 min)</strong>
+          <button id="btn-gz-setup"
+                  style="height:26px;padding:0 10px;font-size:11px;
+                         background:#2a3a60;border:1px solid #4a6aaa;color:#8ab4f8;border-radius:4px;cursor:pointer;">
+            RUN SETUP
+          </button>
+        </div>
+        <code style="color:#80cbc4;">bash scripts/setup_gazebo_wsl.sh</code> — installs Gazebo + ardupilot_gazebo + ArduPilot SITL<br>
+        <code style="color:#80cbc4;">bash scripts/sitl_launch.sh</code> — start SITL + Gazebo each session
       </div>
     </div>
   </section>
@@ -565,30 +580,36 @@ DASHBOARD_HTML = """<!doctype html>
     } catch(e) { addEvt(String(e)); }
   }
 
-  async function launch(script, args) {
+  async function launch(script, args, btn) {
+    const origLabel = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = "Launching…"; }
+    addEvt("→ " + script);
     try {
       const d = await (await fetch("/api/process/launch", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({script, args})
       })).json();
-      addEvt(d.ok ? "Launched " + script : "Launch failed: " + d.error);
-    } catch(e) { addEvt(String(e)); }
+      addEvt(d.ok ? "✓ Started: " + script : "✗ Failed: " + d.error);
+    } catch(e) { addEvt("✗ " + String(e)); }
+    finally {
+      if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+    }
   }
 
   document.querySelectorAll(".stop-btn").forEach(b => b.addEventListener("click", stopProc));
 
-  document.getElementById("launch-mavlink").addEventListener("click", () =>
+  document.getElementById("launch-mavlink").addEventListener("click", function() {
     launch("run_square_mission.py", [
       "--shape",        document.getElementById("m-shape").value,
       "--control-mode", document.getElementById("m-control").value,
       "--size-m",       document.getElementById("m-size").value,
       "--alt-m",        document.getElementById("m-alt").value,
       "--connection",   document.getElementById("m-conn").value,
-    ])
-  );
+    ], this);
+  });
 
-  document.getElementById("launch-sim").addEventListener("click", () => {
+  document.getElementById("launch-sim").addEventListener("click", function() {
     const args = [
       "--side-m",    document.getElementById("s-side").value,
       "--alt-m",     document.getElementById("s-alt").value,
@@ -596,10 +617,10 @@ DASHBOARD_HTML = """<!doctype html>
       "--delay-ms",  document.getElementById("s-delay").value,
     ];
     if (document.getElementById("s-headless").checked) args.push("--headless");
-    launch("run_square_simulation.py", args);
+    launch("run_square_simulation.py", args, this);
   });
 
-  document.getElementById("launch-vision").addEventListener("click", () => {
+  document.getElementById("launch-vision").addEventListener("click", function() {
     const args = [
       "--source",          document.getElementById("v-source").value,
       "--model",           document.getElementById("v-model").value,
@@ -607,7 +628,7 @@ DASHBOARD_HTML = """<!doctype html>
       "--lock-duration-s", document.getElementById("v-lock").value,
     ];
     if (document.getElementById("v-headless").checked) args.push("--headless");
-    launch("run_vision_pipeline.py", args);
+    launch("run_vision_pipeline.py", args, this);
   });
 
   function adArgs() {
@@ -621,24 +642,24 @@ DASHBOARD_HTML = """<!doctype html>
     ];
   }
 
-  document.getElementById("launch-adsim").addEventListener("click", () => {
+  document.getElementById("launch-adsim").addEventListener("click", function() {
     const args = [
       ...adArgs(),
       "--delay-ms", document.getElementById("ad-delay").value,
     ];
     if (document.getElementById("ad-headless").checked) args.push("--headless");
-    launch("run_air_defense_simulation.py", args);
+    launch("run_air_defense_simulation.py", args, this);
   });
 
-  document.getElementById("launch-adfigs").addEventListener("click", () => {
+  document.getElementById("launch-adfigs").addEventListener("click", function() {
     const args = [
       ...adArgs(),
       "--out-dir", document.getElementById("ad-outdir").value,
     ];
-    launch("generate_air_defense_figures.py", args);
+    launch("generate_air_defense_figures.py", args, this);
   });
 
-  document.getElementById("launch-gazebo").addEventListener("click", () => {
+  document.getElementById("launch-gazebo").addEventListener("click", function() {
     const args = [
       "--connection",  document.getElementById("gz-conn").value,
       "--side-m",      document.getElementById("gz-side").value,
@@ -652,7 +673,26 @@ DASHBOARD_HTML = """<!doctype html>
     if (document.getElementById("gz-autolaunched").checked) args.push("--auto-launch");
     if (document.getElementById("gz-headlessgz").checked)   args.push("--headless-gz");
     if (document.getElementById("gz-noviz").checked)        args.push("--no-viz");
-    launch("run_gazebo_air_defense.py", args);
+    launch("run_gazebo_air_defense.py", args, this);
+  });
+
+  // Gazebo one-time WSL2 setup button — spawns wsl bash directly
+  document.getElementById("btn-gz-setup").addEventListener("click", function() {
+    const btn = this;
+    btn.disabled = true;
+    const origLabel = btn.textContent;
+    btn.textContent = "Running…";
+    addEvt("→ setup_gazebo_wsl.sh — this takes ~15 min, watch Process Output");
+    const distro = document.getElementById("gz-distro").value.trim();
+    fetch("/api/process/launch", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({script: "run_gazebo_setup.py", args: distro ? [distro] : []})
+    }).then(r => r.json()).then(d => {
+      addEvt(d.ok ? "✓ Setup started — see Process Output for progress."
+                  : "✗ Failed: " + d.error);
+    }).catch(e => addEvt("✗ " + String(e)))
+      .finally(() => { btn.disabled = false; btn.textContent = origLabel; });
   });
 
   // Process log polling
