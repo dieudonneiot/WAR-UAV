@@ -20,9 +20,11 @@ Python-first combat UAV software stack covering:
 4. [Known Issues and Bugs](#known-issues-and-bugs)
 5. [Flight Control](#flight-control)
 6. [Simulation Tiers](#simulation-tiers)
-7. [Script Reference](#script-reference)
-8. [Project Layout](#project-layout)
-9. [Configuration](#configuration)
+7. [Air Defense Avoidance](#air-defense-avoidance)
+8. [Gazebo SITL + Air Defense](#gazebo-sitl--air-defense)
+9. [Script Reference](#script-reference)
+10. [Project Layout](#project-layout)
+11. [Configuration](#configuration)
 
 ---
 
@@ -45,9 +47,10 @@ Python-first combat UAV software stack covering:
 | ArduPilot build deps | `install-prereqs-ubuntu.sh` | ~5 min, done once |
 | `sim_vehicle.py` | ArduPilot repo | SITL launcher |
 | MAVProxy | ArduPilot installer | Console + map GUI |
+| Gazebo Harmonic (gz-sim 8) | `setup_gazebo_wsl.sh` | 3-D physics sim (Tier 4 only); installed once in WSL2 |
 
-> **WSL2 GUI support:** MAVProxy opens a map window.
-> On Windows 11 this works out of the box (WSLg).
+> **WSL2 GUI support:** MAVProxy opens a map window and Gazebo opens a 3-D viewport.
+> On Windows 11 both work out of the box via WSLg.
 > On Windows 10 you need an X server such as VcXsrv or MobaXterm.
 
 ---
@@ -351,6 +354,131 @@ WSL2           → sim_vehicle.py (ArduPlane SITL)
 Windows        → run_square_mission.py (mission computer)
 ```
 
+### Tier 4 — Gazebo Harmonic + ArduPlane SITL + live zone avoidance
+
+Full 3-D physics: Zephyr delta-wing in a Gazebo world, ArduPlane SITL flight controller,
+real MAVLink mission, and live restricted-zone replanning. The air defense zone appears as
+a red cylinder at t = 30 s; the plane automatically diverts around it.
+
+See [Gazebo SITL + Air Defense](#gazebo-sitl--air-defense) for setup and run instructions.
+
+```text
+WSL2     → Gazebo Harmonic  (air_defense world, Zephyr delta-wing model)
+         → ArduPlane SITL   (sim_vehicle.py)
+Windows  → run_gazebo_air_defense.py  (mission + live replan + Gazebo viz)
+```
+
+---
+
+## Air Defense Avoidance
+
+The air defense avoidance system implements a **visibility-graph tangent bypass planner**
+that reroutes the UAV around a circular restricted zone in real time.  When the zone
+activates mid-mission the planner:
+
+1. Finds the two tangent points from the current position to the zone boundary
+2. Inserts arc-interpolated waypoints between the tangent points (prevents chord-cutting)
+3. Uploads the safe mission to the autopilot and draws the bypass in the Gazebo world
+
+### Kinematic simulation (no external tools)
+
+```powershell
+python scripts/run_air_defense_simulation.py
+```
+
+Headless (saves a PNG to the current directory instead of opening a window):
+
+```powershell
+python scripts/run_air_defense_simulation.py --headless
+```
+
+### CDR report figures
+
+Generate all five publication-quality dark-themed figures at once:
+
+```powershell
+python scripts/generate_air_defense_figures.py
+```
+
+Save to a specific folder:
+
+```powershell
+python scripts/generate_air_defense_figures.py --out-dir docs/figures
+```
+
+| Figure | Output file | Content |
+| ------ | ----------- | ------- |
+| 1 | `mission_map.png` | Zone circles, original dashed path, cyan bypass route, tangent markers T1–T8 |
+| 2 | `zone_distance.png` | Distance to zone vs time, segments coloured by mission phase, activation/replan markers |
+| 3 | `state_timeline.png` | Horizontal band chart showing time spent in each mission phase |
+| 4 | `astar_costmap.png` | A* cost-map grid with optimal path overlaid |
+| 5 | `path_comparison.png` | Bar chart comparing original vs bypass path length with overhead annotation |
+
+**Dashboard:** open the **Air Defense** tab, fill in zone parameters, and click
+**RUN ANIMATION** or **GENERATE FIGURES**.
+
+---
+
+## Gazebo SITL + Air Defense
+
+### One-time WSL2 setup (~15 min)
+
+Run this script once inside a WSL2 / Ubuntu terminal.  It installs Gazebo Harmonic,
+builds the `ardupilot_gazebo` plugin, clones and builds ArduPilot SITL, and installs
+MAVProxy:
+
+```bash
+bash scripts/setup_gazebo_wsl.sh
+```
+
+> The ArduPilot first-build step takes about 10 minutes.  Subsequent launches are instant.
+
+### Each session — two terminals
+
+**Terminal 1 — WSL2:**
+
+```bash
+bash scripts/sitl_launch.sh
+```
+
+This starts Gazebo (the 3-D window opens) and ArduPlane SITL side by side.  Wait until
+you see `SITL + Gazebo running` in the output before moving to Terminal 2.
+
+**Terminal 2 — Windows PowerShell:**
+
+```powershell
+python scripts/run_gazebo_air_defense.py
+```
+
+### What you see in Gazebo
+
+| Time | Event |
+| ---- | ----- |
+| t = 0 s | Zephyr delta-wing spawns on the runway and takes off |
+| t ≈ 10 s | Plane climbs to 50 m and enters AUTO mission (500 × 500 m square) |
+| t = 30 s | Air defense zone activates — a red cylinder and blue buffer ring spawn |
+| t ≈ 31 s | Python detects zone intersection, replans, and uploads the safe mission |
+| t ≈ 32 s | Cyan poles mark the bypass route; plane diverts around the zone |
+
+### CLI options
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `--connection` | `udpin:0.0.0.0:14550` | MAVLink connection string |
+| `--side-m` | `500` | Mission square side in metres |
+| `--alt-m` | `50` | Cruise altitude in metres AGL |
+| `--zone-radius` | `100` | Hard zone radius in metres |
+| `--zone-buffer` | `75` | Safety buffer added around the hard zone |
+| `--activate-at` | `30` | Seconds after takeoff when the zone activates |
+| `--auto-launch` | *(flag)* | Start SITL + Gazebo in WSL2 automatically |
+| `--no-viz` | *(flag)* | Skip Gazebo cylinder visualisation |
+| `--headless-gz` | *(flag)* | Run Gazebo headless (no GUI) with `--auto-launch` |
+| `--wsl-distro` | `""` | WSL2 distro name if you have multiple distros |
+
+**Dashboard:** open the **Gazebo SITL** tab, configure parameters, and click
+**LAUNCH MISSION**.  The setup guide and `sitl_launch.sh` instructions are also
+printed inline in that tab.
+
 ---
 
 ## Script Reference
@@ -368,6 +496,11 @@ Windows        → run_square_mission.py (mission computer)
 | `scripts/control_panel.py` | Interactive terminal panel for status, RTL, loiter, and mode changes |
 | `scripts/web_dashboard.py` | Mission Control browser dashboard — launch scripts, stream live output, flight controls, telemetry |
 | `scripts/run_simulation_test.py` | Automated vision simulation test |
+| `scripts/run_air_defense_simulation.py` | Kinematic air defense avoidance animated demo (Tier 1) |
+| `scripts/generate_air_defense_figures.py` | Generate 5 CDR report figures for the air defense section |
+| `scripts/run_gazebo_air_defense.py` | Live Gazebo + ArduPlane SITL air defense mission (Tier 4) |
+| `scripts/setup_gazebo_wsl.sh` | One-time WSL2 install: Gazebo Harmonic + ardupilot_gazebo + ArduPilot SITL |
+| `scripts/sitl_launch.sh` | Per-session launcher: starts Gazebo world then ArduPlane SITL in WSL2 |
 
 ---
 
@@ -376,7 +509,9 @@ Windows        → run_square_mission.py (mission computer)
 ```text
 TEKNOFEST2026/
 ├── config/
-│   └── mission.example.yaml       # Mission and camera parameters
+│   ├── mission.example.yaml       # Mission and camera parameters
+│   └── gazebo/
+│       └── air_defense.sdf        # Gazebo world: ground, runway, WP poles, Zephyr model
 ├── data/                          # Raw data and sample videos
 ├── docs/
 │   └── simulation.md              # Extended simulation workflow notes
@@ -384,6 +519,7 @@ TEKNOFEST2026/
 ├── scripts/                       # Launcher and validation scripts
 ├── src/uav/
 │   ├── autonomy/                  # Mission phases, engagement, navigation
+│   │   ├── air_defense.py         # RestrictedZone, BypassPlanner, RouteChecker, astar_grid
 │   │   ├── engagement.py          # Target-lock state machine
 │   │   ├── mission_manager.py     # Phase transitions
 │   │   └── navigator.py          # Waypoint guidance, square layout
@@ -392,9 +528,12 @@ TEKNOFEST2026/
 │   ├── mavlink/
 │   │   └── client.py             # MavlinkClient: connect, arm, set_mode, fly_to
 │   ├── simulation/
-│   │   ├── mission_scenario.py   # Waypoint mission physics simulation
-│   │   ├── vision_scenario.py    # Synthetic detection scenarios
-│   │   └── visualizer.py        # Dashboard rendering
+│   │   ├── air_defense_simulation.py  # Kinematic air defense sim with phase tracking
+│   │   ├── gazebo_zone_visualizer.py  # Spawn/remove zone cylinders in a live Gazebo world
+│   │   ├── mission_scenario.py        # Waypoint mission physics simulation
+│   │   ├── sitl_bridge.py             # Manage ArduPlane SITL + Gazebo in WSL2
+│   │   ├── vision_scenario.py         # Synthetic detection scenarios
+│   │   └── visualizer.py             # Dashboard rendering
 │   └── vision/
 │       ├── detector.py           # YOLO detection wrapper
 │       └── tracker.py            # Multi-object tracking
