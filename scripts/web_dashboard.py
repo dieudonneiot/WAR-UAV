@@ -34,6 +34,7 @@ ALLOWED_SCRIPTS: frozenset[str] = frozenset({
     "run_vision_pipeline.py",
     "run_air_defense_simulation.py",
     "generate_air_defense_figures.py",
+    "run_gazebo_air_defense.py",
 })
 
 
@@ -241,6 +242,7 @@ DASHBOARD_HTML = """<!doctype html>
       <button class="tab" data-tab="sim">Simulation</button>
       <button class="tab" data-tab="vision">Vision</button>
       <button class="tab" data-tab="airdefense">Air Defense</button>
+      <button class="tab" data-tab="gazebo">Gazebo SITL</button>
     </div>
 
     <!-- MAVLink Mission -->
@@ -386,6 +388,64 @@ DASHBOARD_HTML = """<!doctype html>
       <p style="font-size:11px;color:var(--muted);margin-top:8px;">
         Figures are saved to the configured output directory and can be used directly in your CDR report.
       </p>
+    </div>
+
+    <!-- Gazebo SITL -->
+    <div class="tab-content" id="tab-gazebo">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+        Requires WSL2 + Gazebo Harmonic + ArduPilot SITL.
+        Run <code>bash scripts/sitl_launch.sh</code> in WSL2 first, or enable Auto-Launch below.
+      </p>
+      <div class="fields">
+        <div class="field field-wide">
+          <label>MAVLink Connection</label>
+          <input type="text" id="gz-conn" value="udpin:0.0.0.0:14550">
+        </div>
+        <div class="field">
+          <label>Side (m)</label>
+          <input type="number" id="gz-side" value="500" min="100" max="5000">
+        </div>
+        <div class="field">
+          <label>Alt (m)</label>
+          <input type="number" id="gz-alt" value="50" min="10" max="500">
+        </div>
+        <div class="field">
+          <label>Zone Radius (m)</label>
+          <input type="number" id="gz-radius" value="100" min="20" max="1000">
+        </div>
+        <div class="field">
+          <label>Safety Buffer (m)</label>
+          <input type="number" id="gz-buffer" value="75" min="10" max="500">
+        </div>
+        <div class="field">
+          <label>Zone Activates (s)</label>
+          <input type="number" id="gz-activate" value="30" min="5" max="300">
+        </div>
+        <div class="field">
+          <label>WSL Distro (optional)</label>
+          <input type="text" id="gz-distro" value="" placeholder="leave blank for default">
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+        <label class="check-row">
+          <input type="checkbox" id="gz-autolaunched"> Auto-launch SITL+Gazebo via WSL2
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="gz-headlessgz"> Headless Gazebo (no GUI)
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="gz-noviz"> Skip Gazebo zone visualisation
+        </label>
+      </div>
+      <div class="launch-actions" style="margin-top:10px;">
+        <button class="btn-g" id="launch-gazebo" style="flex:1">LAUNCH MISSION</button>
+        <button class="btn-r stop-btn" style="flex:0 0 76px">STOP</button>
+      </div>
+      <div style="margin-top:10px;padding:10px;background:#1a2030;border-radius:6px;font-size:11px;color:var(--muted);">
+        <strong style="color:#8ab4f8;">First time?</strong> Open a WSL2 terminal and run:<br>
+        <code style="color:#80cbc4;">bash scripts/setup_gazebo_wsl.sh</code>  — one-time install<br>
+        <code style="color:#80cbc4;">bash scripts/sitl_launch.sh</code>  — start SITL + Gazebo each session
+      </div>
     </div>
   </section>
 
@@ -576,6 +636,23 @@ DASHBOARD_HTML = """<!doctype html>
       "--out-dir", document.getElementById("ad-outdir").value,
     ];
     launch("generate_air_defense_figures.py", args);
+  });
+
+  document.getElementById("launch-gazebo").addEventListener("click", () => {
+    const args = [
+      "--connection",  document.getElementById("gz-conn").value,
+      "--side-m",      document.getElementById("gz-side").value,
+      "--alt-m",       document.getElementById("gz-alt").value,
+      "--zone-radius", document.getElementById("gz-radius").value,
+      "--zone-buffer", document.getElementById("gz-buffer").value,
+      "--activate-at", document.getElementById("gz-activate").value,
+    ];
+    const distro = document.getElementById("gz-distro").value.trim();
+    if (distro) args.push("--wsl-distro", distro);
+    if (document.getElementById("gz-autolaunched").checked) args.push("--auto-launch");
+    if (document.getElementById("gz-headlessgz").checked)   args.push("--headless-gz");
+    if (document.getElementById("gz-noviz").checked)        args.push("--no-viz");
+    launch("run_gazebo_air_defense.py", args);
   });
 
   // Process log polling

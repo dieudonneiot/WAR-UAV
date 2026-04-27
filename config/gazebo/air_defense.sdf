@@ -1,0 +1,151 @@
+<?xml version="1.0" ?>
+<!--
+  TEKNOFEST 2026 — Air Defense Avoidance world for Gazebo Harmonic
+  Vehicle : Zephyr delta-wing (ArduPlane)
+  GPS ref : Canberra, Australia  -35.363262, 149.165237  alt=584 m
+            (matches ArduPilot SITL default home)
+-->
+<sdf version="1.9">
+  <world name="air_defense">
+
+    <!-- ── Physics ─────────────────────────────────────────────────────── -->
+    <physics name="1ms" type="ignore">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- ── Required system plugins ──────────────────────────────────────── -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-air-pressure-system"
+            name="gz::sim::systems::AirPressure"/>
+    <plugin filename="gz-sim-magnetometer-system"
+            name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-navsat-system"
+            name="gz::sim::systems::NavSat"/>
+
+    <!-- ── Scene ────────────────────────────────────────────────────────── -->
+    <scene>
+      <sky/>
+      <grid>false</grid>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.53 0.74 0.9 1</background>
+    </scene>
+
+    <!-- ── GPS origin — must match SITL -l flag ─────────────────────────── -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>-35.363262</latitude_deg>
+      <longitude_deg>149.165237</longitude_deg>
+      <elevation>584</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <!-- ── Sun ──────────────────────────────────────────────────────────── -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 500 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- ── Ground plane ─────────────────────────────────────────────────── -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>5000 5000</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>5000 5000</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.35 0.50 0.30 1</ambient>
+            <diffuse>0.35 0.50 0.30 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ── Runway marker (500 m north, aligns with WP1 direction) ────────── -->
+    <model name="runway">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <pose>0 250 0.01 0 0 0</pose>
+          <geometry>
+            <box><size>20 500 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ── Waypoint markers (visual reference poles) ─────────────────────── -->
+    <!-- WP1 (0, 500) -->
+    <model name="wp1_marker">
+      <static>true</static>
+      <pose>0 500 10 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>1</radius><length>20</length></cylinder></geometry>
+          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.8 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- WP2 (500, 500) -->
+    <model name="wp2_marker">
+      <static>true</static>
+      <pose>500 500 10 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>1</radius><length>20</length></cylinder></geometry>
+          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.8 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- WP3 (500, 0) -->
+    <model name="wp3_marker">
+      <static>true</static>
+      <pose>500 0 10 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>1</radius><length>20</length></cylinder></geometry>
+          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.8 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ── ArduPlane vehicle (ardupilot_gazebo plugin inside model) ───────── -->
+    <include>
+      <uri>model://zephyr_delta_wing</uri>
+      <pose>0 0 0.195 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>
