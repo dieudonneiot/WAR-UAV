@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(.venv/Scripts/pip list *)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python -c ' *)",
+      "Bash(.venv/Scripts/python -c \"import matplotlib; import numpy; print\\('OK'\\)\")",
+      "Bash(.venv/Scripts/python scripts/generate_air_defense_figures.py --side-m 500 --zone-radius 100 --zone-buffer 75 --activate-at 30)"
+    ]
+  }
+}

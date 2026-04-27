@@ -32,6 +32,8 @@ ALLOWED_SCRIPTS: frozenset[str] = frozenset({
     "run_square_simulation.py",
     "run_visual_simulation.py",
     "run_vision_pipeline.py",
+    "run_air_defense_simulation.py",
+    "generate_air_defense_figures.py",
 })
 
 
@@ -238,6 +240,7 @@ DASHBOARD_HTML = """<!doctype html>
       <button class="tab active" data-tab="mavlink">MAVLink Mission</button>
       <button class="tab" data-tab="sim">Simulation</button>
       <button class="tab" data-tab="vision">Vision</button>
+      <button class="tab" data-tab="airdefense">Air Defense</button>
     </div>
 
     <!-- MAVLink Mission -->
@@ -334,6 +337,55 @@ DASHBOARD_HTML = """<!doctype html>
         <button class="btn-b" id="launch-vision">LAUNCH VISION</button>
         <button class="btn-r stop-btn">STOP</button>
       </div>
+    </div>
+
+    <!-- Air Defense Avoidance -->
+    <div class="tab-content" id="tab-airdefense">
+      <div class="fields">
+        <div class="field">
+          <label>Side (m)</label>
+          <input type="number" id="ad-side" value="500" min="100" max="5000">
+        </div>
+        <div class="field">
+          <label>Zone Radius (m)</label>
+          <input type="number" id="ad-radius" value="100" min="20" max="1000">
+        </div>
+        <div class="field">
+          <label>Safety Buffer (m)</label>
+          <input type="number" id="ad-buffer" value="75" min="10" max="500">
+        </div>
+        <div class="field">
+          <label>Zone Activates (s)</label>
+          <input type="number" id="ad-activate" value="30" min="5" max="300">
+        </div>
+        <div class="field">
+          <label>Alt (m)</label>
+          <input type="number" id="ad-alt" value="50" min="10" max="500">
+        </div>
+        <div class="field">
+          <label>Speed (m/s)</label>
+          <input type="number" id="ad-speed" value="20" min="1" max="100">
+        </div>
+        <div class="field">
+          <label>Frame Delay (ms)</label>
+          <input type="number" id="ad-delay" value="40" min="10" max="500">
+        </div>
+        <div class="field">
+          <label>Figures Output Dir</label>
+          <input type="text" id="ad-outdir" value="logs/figures">
+        </div>
+      </div>
+      <label class="check-row">
+        <input type="checkbox" id="ad-headless"> Save PNG only (headless)
+      </label>
+      <div class="launch-actions" style="flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <button class="btn-b" id="launch-adsim" style="flex:1">RUN ANIMATION</button>
+        <button id="launch-adfigs" style="flex:1;background:#6a3fb5;border-color:#6a3fb5;color:#fff;font-weight:600;">GENERATE FIGURES</button>
+        <button class="btn-r stop-btn" style="flex:0 0 76px">STOP</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;">
+        Figures are saved to the configured output directory and can be used directly in your CDR report.
+      </p>
     </div>
   </section>
 
@@ -496,6 +548,34 @@ DASHBOARD_HTML = """<!doctype html>
     ];
     if (document.getElementById("v-headless").checked) args.push("--headless");
     launch("run_vision_pipeline.py", args);
+  });
+
+  function adArgs() {
+    return [
+      "--side-m",      document.getElementById("ad-side").value,
+      "--zone-radius", document.getElementById("ad-radius").value,
+      "--zone-buffer", document.getElementById("ad-buffer").value,
+      "--activate-at", document.getElementById("ad-activate").value,
+      "--alt-m",       document.getElementById("ad-alt").value,
+      "--speed-mps",   document.getElementById("ad-speed").value,
+    ];
+  }
+
+  document.getElementById("launch-adsim").addEventListener("click", () => {
+    const args = [
+      ...adArgs(),
+      "--delay-ms", document.getElementById("ad-delay").value,
+    ];
+    if (document.getElementById("ad-headless").checked) args.push("--headless");
+    launch("run_air_defense_simulation.py", args);
+  });
+
+  document.getElementById("launch-adfigs").addEventListener("click", () => {
+    const args = [
+      ...adArgs(),
+      "--out-dir", document.getElementById("ad-outdir").value,
+    ];
+    launch("generate_air_defense_figures.py", args);
   });
 
   // Process log polling

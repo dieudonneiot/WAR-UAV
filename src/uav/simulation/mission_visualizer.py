@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
 from uav.simulation.mission_scenario import MissionStep
+
+if TYPE_CHECKING:
+    from uav.autonomy.air_defense import RestrictedZone
 
 
 class MissionVisualizer:
@@ -46,6 +50,91 @@ class MissionVisualizer:
         self._draw_status(canvas, status_rect, step)
         self._draw_telemetry(canvas, tel_rect, step)
         return canvas
+
+    def render_air_defense(
+        self,
+        step: MissionStep,
+        trail: list[tuple[float, float]] | None = None,
+        zones: list[RestrictedZone] | None = None,
+        bypass_route: list[tuple[float, float]] | None = None,
+    ) -> np.ndarray:
+        """Like render() but overlays restricted zones and the replanned route."""
+        canvas = self.render(step, trail)
+        if not zones:
+            return canvas
+
+        margin = 24
+        gap = 20
+        top_y = 48
+        tel_h = 84
+        tel_y = self.canvas_height - tel_h - margin
+        panel_h = tel_y - top_y - gap
+        avail_w = self.canvas_width - margin * 2 - gap
+        map_w = int(avail_w * 0.70)
+        vx = margin + 12
+        vy = top_y + 40
+        vw = map_w - 24
+        vh = panel_h - 52
+
+        bounds = self._map_bounds(step)
+
+        def s2s(wx: float, wy: float) -> tuple[int, int]:
+            return self._world_to_screen(wx, wy, vx, vy, vw, vh, bounds)
+
+        self._draw_restricted_zones(canvas, zones, s2s)
+
+        if bypass_route and len(bypass_route) > 1:
+            for i in range(len(bypass_route) - 1):
+                cv2.line(canvas, s2s(*bypass_route[i]), s2s(*bypass_route[i + 1]),
+                         (0, 255, 220), 2, cv2.LINE_AA)
+
+        return canvas
+
+    def _draw_restricted_zones(
+        self,
+        canvas: np.ndarray,
+        zones: list[RestrictedZone],
+        s2s,
+    ) -> None:
+        for zone in zones:
+            cx, cy = zone.center_x, zone.center_y
+            # Approximate pixel radius by projecting one point on the boundary
+            edge = s2s(cx + zone.radius_m, cy)
+            center_px = s2s(cx, cy)
+            r_hard_px = abs(edge[0] - center_px[0])
+
+            edge_eff = s2s(cx + zone.effective_radius, cy)
+            r_eff_px = abs(edge_eff[0] - center_px[0])
+
+            # Filled soft zone (effective radius)
+            overlay = canvas.copy()
+            cv2.circle(overlay, center_px, r_eff_px, (0, 30, 180), -1)
+            cv2.addWeighted(overlay, 0.25, canvas, 0.75, 0, canvas)
+
+            # Hard zone fill
+            overlay2 = canvas.copy()
+            cv2.circle(overlay2, center_px, r_hard_px, (0, 0, 200), -1)
+            cv2.addWeighted(overlay2, 0.35, canvas, 0.65, 0, canvas)
+
+            # Borders
+            cv2.circle(canvas, center_px, r_hard_px, (80, 80, 255), 2)
+            cv2.circle(canvas, center_px, r_eff_px,  (0, 180, 255), 1)
+
+            # Dashes on buffer ring
+            import math
+            for deg in range(0, 360, 18):
+                rad = math.radians(deg)
+                px = int(center_px[0] + r_eff_px * math.cos(rad))
+                py = int(center_px[1] + r_eff_px * math.sin(rad))
+                cv2.circle(canvas, (px, py), 2, (0, 180, 255), -1)
+
+            # Label
+            cv2.putText(canvas, zone.label,
+                        (center_px[0] - 20, center_px[1] - r_eff_px - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (80, 160, 255), 2, cv2.LINE_AA)
+            cv2.putText(canvas, f"R={zone.radius_m:.0f}+{zone.buffer_m:.0f}m buf",
+                        (center_px[0] - 36, center_px[1] + r_eff_px + 18),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.42, (150, 150, 255), 1, cv2.LINE_AA)
 
     def save_preview(self, step: MissionStep, output_path: str | Path) -> Path:
         path = Path(output_path)
@@ -130,11 +219,11 @@ class MissionVisualizer:
         for i in range(len(trail) - 1):
             cv2.line(canvas, s2s(*trail[i]), s2s(*trail[i + 1]), (200, 120, 60), 1)
 
-        # Waypoint markers WP1–WP3 (WP4 == home, drawn separately)
-        wp_labels = ["WP1", "WP2", "WP3", "WP4"]
+        # Waypoint markers — support any number of waypoints (bypass may add extras)
+        last_idx = len(step.waypoints) - 1
         for i, wp in enumerate(step.waypoints):
-            if i == 3:
-                continue  # WP4 overlaps home; skip
+            if i == last_idx and wp == (0.0, 0.0):
+                continue  # RTL home overlaps HOME marker; skip
             sp = s2s(*wp)
             if i < step.current_wp:
                 col = (60, 220, 80)
@@ -142,9 +231,10 @@ class MissionVisualizer:
                 col = (240, 220, 40)
             else:
                 col = (180, 180, 180)
+            label = f"WP{i + 1}"
             cv2.circle(canvas, sp, 9, col, -1)
             cv2.circle(canvas, sp, 9, (245, 245, 245), 1)
-            cv2.putText(canvas, wp_labels[i], (sp[0] + 12, sp[1] + 5),
+            cv2.putText(canvas, label, (sp[0] + 12, sp[1] + 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, col, 2, cv2.LINE_AA)
 
         # Home marker
